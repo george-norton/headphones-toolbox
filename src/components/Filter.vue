@@ -73,34 +73,11 @@
 import { ref, toRefs } from 'vue'
 import { getCssVar } from 'quasar'
 
-const audioCtx = new AudioContext()
-const biquadFilter = audioCtx.createBiquadFilter()
-
-const STEPS = 4096;
-const myFrequencyArray = new Float32Array(STEPS);
-const magResponseOutput = new Float32Array(STEPS);
-const phaseResponseOutput = new Float32Array(STEPS);
-
-for (var i = 0; i < STEPS; i++) {
-  myFrequencyArray[i] = 20000 / STEPS * i;
-}
-
 export default {
   data() {
     return {
       // bandpass_skirt is not supported by the web audio api, so we cant generate a graph for it.
       filters: ['lowpass', 'highpass', /*'bandpass_skirt', 'bandpass_peak'*/ 'bandpass', 'notch', 'allpass', 'peaking', 'lowshelf', 'highshelf'],
-      frequency: myFrequencyArray
-    }
-  },
-  methods: {
-    magnitude() {
-      biquadFilter.type = this.type;
-      biquadFilter.frequency.value = this.f0
-      biquadFilter.gain.value = this.dbGain
-      biquadFilter.Q.value = this.q
-      biquadFilter.getFrequencyResponse(myFrequencyArray, magResponseOutput, phaseResponseOutput)
-      return magResponseOutput
     }
   },
   props: {

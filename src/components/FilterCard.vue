@@ -23,25 +23,6 @@ export default {
                     break
                 }
             }
-        },
-        frequency() {
-            const f = new Float32Array(STEPS).fill(0);
-            if (this.$refs.filter) {
-                return this.$refs.filter[0].frequency
-            }
-            return undefined
-        },
-        magnitude() {
-            const sum = new Float32Array(STEPS).fill(0);
-            for (var i in this.filters) {
-                if (this.filters[i].enabled && i<this.$refs.filter.length) {
-                    const m = this.$refs.filter[i].magnitude()
-                    for (var j=0; j<STEPS; j+=1) {
-                        sum[j] += m[j]
-                    }
-                }
-            }
-            return sum
         }
     },
     components: {

@@ -32,23 +32,24 @@ impl ConnectionState {
 #[derive(Debug)]
 pub struct ConnectedDevice {
     device_handle: DeviceHandle<rusb::Context>,
-    control_interface: u8,
-    input_endpoint: u8,
-    output_endpoint: u8
+    configuration_interface: Option<ConfigurationInterface>
 }
 
 
 #[derive(Debug)]
-struct Endpoints {
+struct ConfigurationInterface {
     interface: u8,
-    input: Option<u8>,
-    output: Option<u8>
+    input: u8,
+    output: u8
 }
 
 fn find_configuration_endpoints<T: UsbContext>(
-    device: &Device<T>,
-    device_desc: &DeviceDescriptor
-) -> Option<Endpoints> {
+    device: &Device<T>
+) -> Option<ConfigurationInterface> {
+    let device_desc = match device.device_descriptor() {
+        Ok(d) => d,
+        Err(_) => return None
+    };
     for n in 0..device_desc.num_configurations() {
         let config_desc = match device.config_descriptor(n) {
             Ok(c) => c,
@@ -59,31 +60,33 @@ fn find_configuration_endpoints<T: UsbContext>(
             for interface_desc in interface.descriptors() {
                 if interface_desc.class_code() == 0xff
                 {
-                    let mut endpoints = Endpoints {interface: interface_desc.interface_number(), input: None, output: None};
+                    let mut endpoints = ConfigurationInterface {interface: interface_desc.interface_number(), input: 0, output: 0};
+                    let mut has_input = false;
+                    let mut has_output = false;
                     for endpoint_desc in interface_desc.endpoint_descriptors() {
-                        if endpoint_desc.direction() == Direction::In
-                        {
-                            endpoints.input = Some(endpoint_desc.address())
+                        if endpoint_desc.direction() == Direction::In {
+                            endpoints.input = endpoint_desc.address();
+                            has_input = true;
                         }
-                        if endpoint_desc.direction() == Direction::Out
-                        {
-                            endpoints.output = Some(endpoint_desc.address())
+                        if endpoint_desc.direction() == Direction::Out {
+                            endpoints.output = endpoint_desc.address();
+                            has_output = false;
                         }
                     }
-                    
-                    return Some(endpoints)
+                    if has_input && has_output {
+                        return Some(endpoints)
+                    }
                 }
             }
         }
     }
-
     None
 }
 
 #[tauri::command]
 fn reboot_bootloader(connection_state: State<Mutex<ConnectionState>>) -> bool {
-    let mut connection = connection_state.lock().unwrap();
-    match &(connection.connected) {
+    let connection = connection_state.lock().unwrap();
+    match &connection.connected {
         Some(d) => {
             let buf : [u8;0] = [];
             let r = d.device_handle.write_control(LIBUSB_RECIPIENT_DEVICE | LIBUSB_REQUEST_TYPE_VENDOR, 0, 0x2e8a, 0, &buf, Duration::from_millis(100));
@@ -118,10 +121,15 @@ fn open(serial_number: &str, connection_state: State<Mutex<ConnectionState>>) ->
                 if sn == serial_number {
                     match device.open() {
                         Ok(mut handle) => {
-                            connection.connected = Some(ConnectedDevice {device_handle: handle, control_interface: 0, input_endpoint: 0, output_endpoint: 0});
+                            let configuration_interface = find_configuration_endpoints(&device);
+                            match &configuration_interface {
+                                Some(i) => { handle.claim_interface(i.interface).unwrap(); },
+                                None => { println!("Could not detect a configuration interface"); }
+                            }
+                            connection.connected = Some(ConnectedDevice {device_handle: handle, configuration_interface: configuration_interface });
                             return true
                         },
-                        Err(e) => return false
+                        Err(_) => return false
                     }
                 }
             },
@@ -148,8 +156,7 @@ fn poll_devices(connection_state: State<Mutex<ConnectionState>>) -> String {
 
     for device in devices.iter() {
         let address : u16 = ((device.bus_number() as u16) << 8) | (device.address() as u16);
-        if (known_devices.contains(&address))
-        {
+        if known_devices.contains(&address) {
             device_list.push(connection_state.lock().unwrap().serial_numbers[&address].clone());
             known_devices.remove(&address);
             continue
@@ -158,11 +165,11 @@ fn poll_devices(connection_state: State<Mutex<ConnectionState>>) -> String {
             Ok(d) => d,
             Err(_) => continue,
         };
-        println!("Device {:#x}:{:#x} {:#x} {:#x} {:#x}", device_desc.vendor_id(), device_desc.product_id(), device_desc.class_code(), device.bus_number(), device.address());
+        // println!("Device {:#x}:{:#x} {:#x} {:#x} {:#x}", device_desc.vendor_id(), device_desc.product_id(), device_desc.class_code(), device.bus_number(), device.address());
 
         if device_desc.vendor_id() == 0x2e8a && device_desc.product_id() == 0xfedd {
             match device.open() {
-                Ok(mut handle) => {
+                Ok(handle) => {
                     let serial_number_string_index = device_desc.serial_number_string_index().unwrap();
                     let serial_number = handle.read_string_descriptor_ascii(serial_number_string_index);
                     match serial_number {
@@ -195,7 +202,6 @@ fn poll_devices(connection_state: State<Mutex<ConnectionState>>) -> String {
 
 fn main() {
     tauri::Builder::default()
-        //.manage(ConnectionState(Mutex::new(Option::None))
         .manage(Mutex::new(ConnectionState::new()))
         .invoke_handler(tauri::generate_handler![reboot_bootloader, poll_devices, open])
         .run(tauri::generate_context!())

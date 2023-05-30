@@ -1,5 +1,6 @@
 <template>
-  <Line :data="chartData" :options="options" style="background-image:url('src/assets/graph_bg.svg');background-repeat: no-repeat; background-size:contain"/>
+  <Line :data="chartData" :options="options"
+    style="background-image:url('src/assets/graph_bg.svg');background-repeat: no-repeat; background-size:contain" />
 </template>
      
 <script>
@@ -29,12 +30,60 @@ ChartJS.register(
   Legend
 )
 
-const frequency = [1, 16, 60, 250, 500, 2000, 4000, 6000, 20000];
-const magnitude = [0, 16, 60, 250, 500, 2000, 4000, 6000, 20000];
+const audioCtx = new AudioContext()
+const biquadFilter = audioCtx.createBiquadFilter()
+
+const STEPS = 4096;
+const frequency = new Float32Array(STEPS);
+var magnitudeSum = new Float32Array(STEPS);
+
+// TODO: we plot with a logarithmic scale, so we have much better resolution
+// at high frequencies.
+for (var i = 0; i < STEPS; i++) {
+  frequency[i] = 20000 / STEPS * i;
+}
 
 export default {
   name: 'LineChart',
   components: { Line },
+  watch: {
+    filters: {
+      handler() {
+        var magnitude = new Float32Array(STEPS);
+        var phaseResponse = new Float32Array(STEPS);
+        magnitudeSum.fill(0);
+        const config = this.filters.configuration;
+        for (var i in config) {
+            if (config[i].enabled) {
+              biquadFilter.type = config[i].type;
+              biquadFilter.frequency.value = config[i].f0
+              biquadFilter.gain.value = config[i].dbGain
+              biquadFilter.Q.value = config[i].q
+              biquadFilter.getFrequencyResponse(frequency, magnitude, phaseResponse)
+                for (var j=0; j<STEPS; j+=1) {
+                  magnitudeSum[j] += magnitude[j]
+                }
+            }
+        }
+        this.chartData = reactive({
+          labels: frequency,
+          datasets: [
+            {
+              label: "title",
+              borderColor: getCssVar('primary'),
+              data: magnitudeSum,
+              stepped: false,
+              tension: 0
+            }
+          ]
+        })
+      },
+      deep: true
+    }
+  },
+  props: {
+    filters: reactive([])
+  },
   data() {
     return {
       chartData: reactive({
@@ -43,7 +92,7 @@ export default {
           {
             label: "title",
             borderColor: getCssVar('primary'),
-            data: magnitude,
+            data: magnitudeSum,
             stepped: false,
             tension: 0
           }
@@ -75,7 +124,7 @@ export default {
             ticks: {
               display: true,
               //maxRotation: 0,
-                //    minRotation: 0
+              //minRotation: 0
             },
             grid: {
               display: false

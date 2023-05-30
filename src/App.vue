@@ -19,7 +19,6 @@ export default {
   },
   mounted() {
     this.loadState()
-    this.updateGraph()
     this.pollDevices()
     window.setInterval(this.pollDevices, 5000)
   },
@@ -33,7 +32,6 @@ export default {
     tabs: {
       handler() {
         this.saveState()
-        this.updateGraph()
       },
       deep: true
     },
@@ -97,30 +95,6 @@ export default {
         this.tabs[i].id = i
       }
     },
-    updateGraph() {
-      console.log("updateGraph")
-      if (this.$refs.filterCard) {
-        const card = this.$refs.filterCard[0]
-        if (card) {
-          const graph = this.$refs.graph
-          const frequency = card.frequency()
-          if (frequency) {
-            var chartData = {
-              labels: frequency,
-              datasets: [
-                {
-                  label: "title",
-                  borderColor: getCssVar('primary'),
-                  data: card.magnitude(),
-                  stepped: false
-                }
-              ]
-            }
-            graph.chartData = chartData
-          }
-        }
-      }
-    },
     async saveState() {
       var config = {
         "currentConfiguration": this.tab,
@@ -180,9 +154,6 @@ export default {
             this.connected = false
           }
           else if (this.device != "none") {
-            console.log(this.connected)
-            console.log(this.device)
-            console.log(this.devices)
             if (this.connected && (devices.indexOf(this.device) == -1)) {
               this.$q.notify({ type: 'negative', message: "Device disconnected" })
               this.connected = false
@@ -192,7 +163,6 @@ export default {
                 this.$q.notify({ type: 'positive', message: "Device connected" })
               }
               this.connected = true
-              console.log("Going to open now...")
               invoke('open', {serialNumber: this.device}).then((message) => {
                 console.log("Open returned " + message)
               })
@@ -317,7 +287,7 @@ export default {
                             </q-btn-->
 
         </q-tabs>
-        <q-tab-panels v-model="tab" animated class="bg-grey-1" @transition="updateGraph()">
+        <q-tab-panels v-model="tab" animated class="bg-grey-1">
           <q-tab-panel v-for="t in tabs" :name="t.id" class="column q-gutter-md q-ma-none bg-grey-1">
             <FilterCardVue v-model:filters="t.configuration" ref="filterCard" />
           </q-tab-panel>
@@ -329,7 +299,7 @@ export default {
     <q-footer elevated class="bg-grey-8 text-white">
 
       <div class="block full-width bg-white">
-        <GraphVue ref="graph" />
+        <GraphVue ref="graph" v-model:filters="tabs[tab]" />
       </div>
 
     </q-footer>
