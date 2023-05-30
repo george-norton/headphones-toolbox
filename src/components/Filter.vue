@@ -1,0 +1,115 @@
+<template>
+  <div class="full-width">
+    <q-toolbar class="text-black bg-grey-3">
+      <q-select dense stretch flat :model-value="type" @update:model-value="(value) => $emit('update:type', value)"
+        :options="filters" class="col-2">
+        <template v-slot:prepend>
+          <q-icon name="equalizer" />
+        </template>
+      </q-select>
+      <q-toolbar-title>
+      </q-toolbar-title>
+      <q-toggle dense :model-value="enabled" @update:model-value="(value) => $emit('update:enabled', value)"
+        checked-icon="music_note" unchecked-icon="music_off">
+        <q-tooltip>
+          Enable/Disable this filter
+        </q-tooltip>
+      </q-toggle>
+      <q-btn flat round dense icon="delete" text-color="grey-9" @click="$emit('delete:filter')">
+        <q-tooltip>
+          Delete this filter
+        </q-tooltip>
+      </q-btn>
+    </q-toolbar>
+    <div class="full-width row">
+      <q-list dense bordered class="col-grow q-py-sm">
+        <q-item>
+          <q-item-section>
+            <b>
+              Frequency (hz)
+            </b>
+            <q-slider :model-value="f0" @update:model-value="(value) => $emit('update:f0', value)" label
+              :label-value="f0 + 'hz'" :min=0 :max=20000>
+            </q-slider>
+          </q-item-section>
+          <q-item-section side>
+            <q-input type="number" dense hide-bottom-space shadow-text="hz" style="width:5em" :model-value="f0"
+              @update:model-value="(value) => $emit('update:f0', value)" :min=0 :max=20000 />
+          </q-item-section>
+        </q-item>
+        <q-item v-if="['lowshelf', 'highshelf', 'peaking'].includes(type)">
+          <q-item-section>
+            <b>
+              Gain (db)
+            </b>
+            <q-slider :model-value="dbGain" @update:model-value="(value) => $emit('update:dbGain', value)" :min=-20
+              :max=20 :step=0.01 label :label-value="dbGain + 'db'" />
+          </q-item-section>
+          <q-item-section side>
+            <q-input type="number" dense hide-bottom-space shadow-text="db" style="width:5em" :model-value="dbGain"
+              @update:model-value="(value) => $emit('update:dbGain', value)" :min=-20 :max=20 />
+          </q-item-section>
+        </q-item>
+        <q-item>
+
+          <q-item-section>
+            <b>
+              Quality
+            </b>
+            <q-slider :model-value="q" @update:model-value="(value) => $emit('update:q', value)" :min=0 :max=33 :step=0.01
+              label />
+          </q-item-section>
+          <q-item-section side>
+            <q-input type="number" dense hide-bottom-space style="width:5em" :model-value="q"
+              @update:model-value="(value) => $emit('update:q', value)" :min=0 :max=33 />
+          </q-item-section>
+        </q-item>
+      </q-list>
+    </div>
+  </div>
+</template>
+ 
+<script>
+import { ref, toRefs } from 'vue'
+import { getCssVar } from 'quasar'
+
+const audioCtx = new AudioContext()
+const biquadFilter = audioCtx.createBiquadFilter()
+
+const STEPS = 4096;
+const myFrequencyArray = new Float32Array(STEPS);
+const magResponseOutput = new Float32Array(STEPS);
+const phaseResponseOutput = new Float32Array(STEPS);
+
+for (var i = 0; i < STEPS; i++) {
+  myFrequencyArray[i] = 20000 / STEPS * i;
+}
+
+export default {
+  data() {
+    return {
+      // bandpass_skirt is not supported by the web audio api, so we cant generate a graph for it.
+      filters: ['lowpass', 'highpass', /*'bandpass_skirt', 'bandpass_peak'*/ 'bandpass', 'notch', 'allpass', 'peaking', 'lowshelf', 'highshelf'],
+      frequency: myFrequencyArray
+    }
+  },
+  methods: {
+    magnitude() {
+      biquadFilter.type = this.type;
+      biquadFilter.frequency.value = this.f0
+      biquadFilter.gain.value = this.dbGain
+      biquadFilter.Q.value = this.q
+      biquadFilter.getFrequencyResponse(myFrequencyArray, magResponseOutput, phaseResponseOutput)
+      return magResponseOutput
+    }
+  },
+  props: {
+    type: ref(String),
+    f0: ref(Number),
+    dbGain: ref(Number),
+    q: ref(Number),
+    enabled: ref(Boolean)
+  },
+  emits: ['update:type', 'update:f0', 'update:dbGain', 'update:q', 'update:enabled', 'delete:filter']
+}
+</script>
