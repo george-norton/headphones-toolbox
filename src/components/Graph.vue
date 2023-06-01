@@ -55,9 +55,9 @@ export default {
         const config = this.filters.configuration;
         for (var i in config) {
             if (config[i].enabled) {
-              biquadFilter.type = config[i].type;
+              biquadFilter.type = config[i].filter_type;
               biquadFilter.frequency.value = config[i].f0
-              biquadFilter.gain.value = config[i].dbGain
+              biquadFilter.gain.value = config[i].db_gain
               biquadFilter.Q.value = config[i].q
               biquadFilter.getFrequencyResponse(frequency, magnitude, phaseResponse)
                 for (var j=0; j<STEPS; j+=1) {

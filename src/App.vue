@@ -102,6 +102,14 @@ export default {
         "deviceNames": deviceNames
       }
       localStorage.setItem("state", JSON.stringify(config))
+
+      var sendConfig = {
+        "filters": this.tabs[this.tab].configuration
+      }
+      console.log(JSON.stringify(sendConfig))
+      invoke('write_config', {config: JSON.stringify(sendConfig)}).then((message) => {
+        console.log("Write returned " + message)
+      })
     },
     loadState() {
       var config = JSON.parse(localStorage.getItem("state"))
@@ -160,12 +168,14 @@ export default {
             }
             else if (!this.connected) {
               if (devices.indexOf(this.device) != -1) {
-                this.$q.notify({ type: 'positive', message: "Device connected" })
+                invoke('open', {serialNumber: this.device}).then((result) => {
+                  if (result) {
+                    this.$q.notify({ type: 'positive', message: "Device connected" })
+                    this.connected = true
+                  }
+                  console.log("Open returned " + message)
+                })
               }
-              this.connected = true
-              invoke('open', {serialNumber: this.device}).then((message) => {
-                console.log("Open returned " + message)
-              })
             }
           }
         }

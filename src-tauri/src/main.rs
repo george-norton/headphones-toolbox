@@ -70,7 +70,7 @@ fn find_configuration_endpoints<T: UsbContext>(
                         }
                         if endpoint_desc.direction() == Direction::Out {
                             endpoints.output = endpoint_desc.address();
-                            has_output = false;
+                            has_output = true;
                         }
                     }
                     if has_input && has_output {
@@ -83,13 +83,124 @@ fn find_configuration_endpoints<T: UsbContext>(
     None
 }
 
+#[repr(u16)]
+#[allow(dead_code)]
+enum StructureTypes {
+    // Commands/Responses, these are container TLVs. The Value will be a set of TLV structures.
+    OK = 0,                     // Standard response when a command was successful
+    NOK,                        // Standard error response
+    FlashHeader,                // A special container for the config stored in flash. Hopefully there is some useful
+                                // metadata in here to allow us to migrate an old config to a new version.
+    GetVersion,                 // Returns the current config version, and the minimum supported version so clients
+                                // can decide if they can talk to us or not.
+    SetConfiguration,           // Updates the active configuration with the supplied TLVs
+    GetActiveConfiguration,     // Retrieves the current active configuration TLVs from RAM
+    GetStoredConfiguration,     // Retrieves the current stored configuration TLVs from Flash
+    SaveConfiguration,          // Writes the active configuration to Flash
+
+    // Configuration structures, these are returned in the body of a command/response
+    PreProcessingConfiguration = 0x200,
+    FilterConfiguration,
+    Pcm3060Configuration,
+
+    // Status structures, these are returned in the body of a command/response but they are
+    // not persisted as part of the configuration
+    VersionStatus = 0x400,
+}
+
+#[derive(Serialize, Deserialize)]
+struct Filter {
+    filter_type: String,
+    q: f64,
+    f0: f64,
+    db_gain: f64,
+    enabled: bool
+}
+
+#[derive(Serialize, Deserialize)]
+struct Config {
+    filters: Vec<Filter>
+}
+
+#[tauri::command]
+fn write_config(config: &str, connection_state: State<Mutex<ConnectionState>>) -> bool {
+    let connection = connection_state.lock().unwrap();
+    match &connection.connected {
+        Some(device) => {
+            match &device.configuration_interface {
+                Some(interface) => {
+                    let mut filter_payload : Vec<u8> = Vec::new();
+                    match serde_json::from_str::<Config>(config) {
+                        Ok(cfg) => {
+                            for filter in cfg.filters.iter() {
+                                println!("Found filter: {}", filter.filter_type);
+                                let filter_type_val;
+                                let filter_args;
+
+                                match filter.filter_type.as_str() {
+                                    "lowpass" => { filter_type_val = 0u32; filter_args = 2; },
+                                    "highpass" => { filter_type_val = 1u32; filter_args = 2; },
+                                    "bandpass_skirt" => { filter_type_val = 2u32; filter_args = 2; },
+                                    "bandpass" | "bandpass_peak" => { filter_type_val = 3u32; filter_args = 2; },
+                                    "notch" => { filter_type_val = 4u32; filter_args = 2; },
+                                    "allpass" => { filter_type_val = 5u32; filter_args = 2; },
+                                    "peaking" => { filter_type_val = 6u32; filter_args = 3; },
+                                    "lowshelf" => { filter_type_val = 7u32; filter_args = 3; },
+                                    "highshelf" => { filter_type_val = 8u32; filter_args = 3; },
+                                    _ => return false
+                                }
+
+                                filter_payload.extend_from_slice(&filter_type_val.to_le_bytes());
+                                filter_payload.extend_from_slice(&filter.f0.to_le_bytes());
+                                if filter_args == 3 {
+                                    filter_payload.extend_from_slice(&filter.db_gain.to_le_bytes());
+                                }
+                                filter_payload.extend_from_slice(&filter.q.to_le_bytes());
+                            }
+
+                        },
+                        Err(e) => {
+                            println!("Error: {}", e);
+                            return false;
+                        }
+                    }
+
+                    let mut buf : Vec<u8> = Vec::new();
+                    buf.extend_from_slice(&(StructureTypes::SetConfiguration as u16).to_le_bytes());
+                    buf.extend_from_slice(&((8+filter_payload.len()) as u16).to_le_bytes());
+                    buf.extend_from_slice(&(StructureTypes::FilterConfiguration as u16).to_le_bytes());
+                    buf.extend_from_slice(&((4+filter_payload.len()) as u16).to_le_bytes());
+                    buf.extend_from_slice(&filter_payload);
+
+                    println!("Write {} bytes to {}", buf.len(), interface.output);
+                    let mut r = device.device_handle.write_bulk(interface.output, &buf, Duration::from_millis(100));
+                    println!("Write is Error: {}", r.is_err());
+
+                    let mut result = [0; 4];
+                    r = device.device_handle.read_bulk(interface.input, &mut result, Duration::from_millis(100));
+                    println!("Read is Error: {} {:02X?}", r.is_err(), result);
+                    return true;
+                },
+                None => {
+                    println!("No interface");
+                }
+            }
+            return true;
+        },
+        None => {
+            println!("No connection");
+        }
+    }
+    return false;
+}
+
 #[tauri::command]
 fn reboot_bootloader(connection_state: State<Mutex<ConnectionState>>) -> bool {
     let connection = connection_state.lock().unwrap();
     match &connection.connected {
-        Some(d) => {
+        Some(device) => {
             let buf : [u8;0] = [];
-            let r = d.device_handle.write_control(LIBUSB_RECIPIENT_DEVICE | LIBUSB_REQUEST_TYPE_VENDOR, 0, 0x2e8a, 0, &buf, Duration::from_millis(100));
+            let r = device.device_handle.write_control(LIBUSB_RECIPIENT_DEVICE | LIBUSB_REQUEST_TYPE_VENDOR, 0, 0x2e8a, 0, &buf, Duration::from_millis(100));
             println!("Reboot Device: {}", r.is_err());
 
             return true;
@@ -203,7 +314,7 @@ fn poll_devices(connection_state: State<Mutex<ConnectionState>>) -> String {
 fn main() {
     tauri::Builder::default()
         .manage(Mutex::new(ConnectionState::new()))
-        .invoke_handler(tauri::generate_handler![reboot_bootloader, poll_devices, open])
+        .invoke_handler(tauri::generate_handler![reboot_bootloader, poll_devices, open, write_config])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

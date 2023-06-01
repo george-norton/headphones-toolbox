@@ -1,8 +1,8 @@
 <template>
   <div class="full-width">
     <q-toolbar class="text-black bg-grey-3">
-      <q-select dense stretch flat :model-value="type" @update:model-value="(value) => $emit('update:type', value)"
-        :options="filters" class="col-2">
+      <q-select dense stretch flat :model-value="filter_type" @update:model-value="(value) => $emit('update:filter_type', value)"
+        :options="filter_types" class="col-2">
         <template v-slot:prepend>
           <q-icon name="equalizer" />
         </template>
@@ -37,17 +37,17 @@
               @update:model-value="(value) => $emit('update:f0', value)" :min=0 :max=20000 />
           </q-item-section>
         </q-item>
-        <q-item v-if="['lowshelf', 'highshelf', 'peaking'].includes(type)">
+        <q-item v-if="['lowshelf', 'highshelf', 'peaking'].includes(filter_type)">
           <q-item-section>
             <b>
               Gain (db)
             </b>
-            <q-slider :model-value="dbGain" @update:model-value="(value) => $emit('update:dbGain', value)" :min=-20
-              :max=20 :step=0.01 label :label-value="dbGain + 'db'" />
+            <q-slider :model-value="db_gain" @update:model-value="(value) => $emit('update:db_gain', value)" :min=-20
+              :max=20 :step=0.01 label :label-value="db_gain + 'db'" />
           </q-item-section>
           <q-item-section side>
-            <q-input type="number" dense hide-bottom-space shadow-text="db" style="width:5em" :model-value="dbGain"
-              @update:model-value="(value) => $emit('update:dbGain', value)" :min=-20 :max=20 />
+            <q-input type="number" dense hide-bottom-space shadow-text="db" style="width:5em" :model-value="db_gain"
+              @update:model-value="(value) => $emit('update:db_gain', value)" :min=-20 :max=20 />
           </q-item-section>
         </q-item>
         <q-item>
@@ -77,16 +77,16 @@ export default {
   data() {
     return {
       // bandpass_skirt is not supported by the web audio api, so we cant generate a graph for it.
-      filters: ['lowpass', 'highpass', /*'bandpass_skirt', 'bandpass_peak'*/ 'bandpass', 'notch', 'allpass', 'peaking', 'lowshelf', 'highshelf'],
+      filter_types: ['lowpass', 'highpass', /*'bandpass_skirt', 'bandpass_peak'*/ 'bandpass', 'notch', 'allpass', 'peaking', 'lowshelf', 'highshelf'],
     }
   },
   props: {
-    type: ref(String),
+    filter_type: ref(String),
     f0: ref(Number),
-    dbGain: ref(Number),
+    db_gain: ref(Number),
     q: ref(Number),
     enabled: ref(Boolean)
   },
-  emits: ['update:type', 'update:f0', 'update:dbGain', 'update:q', 'update:enabled', 'delete:filter']
+  emits: ['update:filter_type', 'update:f0', 'update:db_gain', 'update:q', 'update:enabled', 'delete:filter']
 }
 </script>

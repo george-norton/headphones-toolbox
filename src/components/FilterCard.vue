@@ -3,7 +3,6 @@
 import FilterVue from './Filter.vue'
 import { reactive, ref } from 'vue'
 
-const STEPS = 4096
 export default {
     data() {
         return {
@@ -14,7 +13,7 @@ export default {
     },
     methods: {
         addFilter() {
-            this.filters.push({ type: "lowpass", q: 0, f0: 0, dbGain: 0, enabled: true })
+            this.filters.push({ filter_type: "lowpass", q: 0, f0: 0, db_gain: 0, enabled: true })
         },
         deleteFilter(filter) {
             for (var i = 0; i < this.filters.length; i++) {
@@ -47,7 +46,7 @@ export default {
         <q-card-section>
             <q-list class="col-12">
                 <q-item style="padding-left:0px; padding-right:0px" v-for="filter in filters">
-                    <FilterVue v-model:type="filter.type" v-model:f0="filter.f0" v-model:dbGain="filter.dbGain"
+                    <FilterVue v-model:filter_type="filter.filter_type" v-model:f0="filter.f0" v-model:db_gain="filter.db_gain"
                         v-model:q="filter.q" v-model:enabled="filter.enabled" @delete:filter="deleteFilter(filter)"
                         ref="filter" />
                 </q-item>
