@@ -1,7 +1,7 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 use rusb::{
-    Context, Device, DeviceDescriptor, DeviceHandle, Direction, Result, TransferType, UsbContext,
+    Device, DeviceHandle, Direction,  UsbContext,
 };
 use tauri::State;
 use std::time::Duration;
@@ -123,7 +123,7 @@ struct Config {
 }
 
 #[tauri::command]
-fn write_config(config: &str, connection_state: State<Mutex<ConnectionState>>) -> bool {
+async fn write_config(config: &str, connection_state: State<'_, Mutex<ConnectionState>>) -> Result<bool, ()> {
     let connection = connection_state.lock().unwrap();
     match &connection.connected {
         Some(device) => {
@@ -133,35 +133,36 @@ fn write_config(config: &str, connection_state: State<Mutex<ConnectionState>>) -
                     match serde_json::from_str::<Config>(config) {
                         Ok(cfg) => {
                             for filter in cfg.filters.iter() {
-                                println!("Found filter: {}", filter.filter_type);
-                                let filter_type_val;
-                                let filter_args;
+                                if filter.enabled {
+                                    let filter_type_val : u32;
+                                    let filter_args;
 
-                                match filter.filter_type.as_str() {
-                                    "lowpass" => { filter_type_val = 0u32; filter_args = 2; },
-                                    "highpass" => { filter_type_val = 1u32; filter_args = 2; },
-                                    "bandpass_skirt" => { filter_type_val = 2u32; filter_args = 2; },
-                                    "bandpass" | "bandpass_peak" => { filter_type_val = 3u32; filter_args = 2; },
-                                    "notch" => { filter_type_val = 4u32; filter_args = 2; },
-                                    "allpass" => { filter_type_val = 5u32; filter_args = 2; },
-                                    "peaking" => { filter_type_val = 6u32; filter_args = 3; },
-                                    "lowshelf" => { filter_type_val = 7u32; filter_args = 3; },
-                                    "highshelf" => { filter_type_val = 8u32; filter_args = 3; },
-                                    _ => return false
-                                }
+                                    match filter.filter_type.as_str() {
+                                        "lowpass" => { filter_type_val = 0; filter_args = 2; },
+                                        "highpass" => { filter_type_val = 1; filter_args = 2; },
+                                        "bandpass_skirt" => { filter_type_val = 2; filter_args = 2; },
+                                        "bandpass" | "bandpass_peak" => { filter_type_val = 3; filter_args = 2; },
+                                        "notch" => { filter_type_val = 4; filter_args = 2; },
+                                        "allpass" => { filter_type_val = 5; filter_args = 2; },
+                                        "peaking" => { filter_type_val = 6; filter_args = 3; },
+                                        "lowshelf" => { filter_type_val = 7; filter_args = 3; },
+                                        "highshelf" => { filter_type_val = 8; filter_args = 3; },
+                                        _ => return Ok(false)
+                                    }
 
-                                filter_payload.extend_from_slice(&filter_type_val.to_le_bytes());
-                                filter_payload.extend_from_slice(&filter.f0.to_le_bytes());
-                                if filter_args == 3 {
-                                    filter_payload.extend_from_slice(&filter.db_gain.to_le_bytes());
+                                    filter_payload.extend_from_slice(&filter_type_val.to_le_bytes());
+                                    filter_payload.extend_from_slice(&filter.f0.to_le_bytes());
+                                    if filter_args == 3 {
+                                        filter_payload.extend_from_slice(&filter.db_gain.to_le_bytes());
+                                    }
+                                    filter_payload.extend_from_slice(&filter.q.to_le_bytes());
                                 }
-                                filter_payload.extend_from_slice(&filter.q.to_le_bytes());
                             }
 
                         },
                         Err(e) => {
                             println!("Error: {}", e);
-                            return false;
+                            return Ok(false);
                         }
                     }
 
@@ -172,26 +173,59 @@ fn write_config(config: &str, connection_state: State<Mutex<ConnectionState>>) -
                     buf.extend_from_slice(&((4+filter_payload.len()) as u16).to_le_bytes());
                     buf.extend_from_slice(&filter_payload);
 
-                    println!("Write {} bytes to {}", buf.len(), interface.output);
+                    //println!("Write {} bytes to {}", buf.len(), interface.output);
                     let mut r = device.device_handle.write_bulk(interface.output, &buf, Duration::from_millis(100));
-                    println!("Write is Error: {}", r.is_err());
+                    //println!("Write is Error: {}", r.is_err());
 
                     let mut result = [0; 4];
                     r = device.device_handle.read_bulk(interface.input, &mut result, Duration::from_millis(100));
-                    println!("Read is Error: {} {:02X?}", r.is_err(), result);
-                    return true;
+                    //println!("Read is Error: {} {:02X?}", r.is_err(), result);
+                    return Ok(true);
                 },
                 None => {
                     println!("No interface");
                 }
             }
-            return true;
+            return Ok(true);
         },
         None => {
             println!("No connection");
         }
     }
-    return false;
+    return Ok(false);
+}
+
+#[tauri::command]
+async fn save_config(config: &str, connection_state: State<'_, Mutex<ConnectionState>>) -> Result<bool, ()> {
+    let connection = connection_state.lock().unwrap();
+    match &connection.connected {
+        Some(device) => {
+            match &device.configuration_interface {
+                Some(interface) => {
+                    let mut buf : Vec<u8> = Vec::new();
+                    buf.extend_from_slice(&(StructureTypes::SaveConfiguration as u16).to_le_bytes());
+                    buf.extend_from_slice(&(4u16).to_le_bytes());
+
+                    //println!("Write {} bytes to {}", buf.len(), interface.output);
+                    let mut r = device.device_handle.write_bulk(interface.output, &buf, Duration::from_millis(100));
+                    //println!("Write is Error: {}", r.is_err());
+
+                    let mut result = [0; 4];
+                    r = device.device_handle.read_bulk(interface.input, &mut result, Duration::from_millis(100));
+                    //println!("Read is Error: {} {:02X?}", r.is_err(), result);
+                    return Ok(true);
+                },
+                None => {
+                    println!("No interface");
+                }
+            }
+            return Ok(true);
+        },
+        None => {
+            println!("No connection");
+        }
+    }
+    return Ok(false);
 }
 
 #[tauri::command]
@@ -314,7 +348,7 @@ fn poll_devices(connection_state: State<Mutex<ConnectionState>>) -> String {
 fn main() {
     tauri::Builder::default()
         .manage(Mutex::new(ConnectionState::new()))
-        .invoke_handler(tauri::generate_handler![reboot_bootloader, poll_devices, open, write_config])
+        .invoke_handler(tauri::generate_handler![reboot_bootloader, poll_devices, open, write_config, save_config])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

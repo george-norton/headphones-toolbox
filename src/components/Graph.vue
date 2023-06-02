@@ -36,6 +36,8 @@ const biquadFilter = audioCtx.createBiquadFilter()
 const STEPS = 4096;
 const frequency = new Float32Array(STEPS);
 var magnitudeSum = new Float32Array(STEPS);
+var magnitude = new Float32Array(STEPS);
+var phaseResponse = new Float32Array(STEPS);
 
 // TODO: we plot with a logarithmic scale, so we have much better resolution
 // at high frequencies.
@@ -49,8 +51,7 @@ export default {
   watch: {
     filters: {
       handler() {
-        var magnitude = new Float32Array(STEPS);
-        var phaseResponse = new Float32Array(STEPS);
+
         magnitudeSum.fill(0);
         const config = this.filters.configuration;
         for (var i in config) {

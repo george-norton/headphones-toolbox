@@ -83,6 +83,7 @@ export default {
     },
     deleteConfiguration() {
       for (var i = 0; i < this.tabs.length; i++) {
+        this.tabs[i].id = i
         if (this.tabs[i].id == this.tab) {
           this.tabs.splice(i, 1)
           if (i > 0) {
@@ -92,7 +93,6 @@ export default {
             this.tab = this.tabs[i].id
           }
         }
-        this.tabs[i].id = i
       }
     },
     async saveState() {
@@ -225,7 +225,7 @@ export default {
           </q-tooltip>
         </q-btn>
         <q-space />
-        <q-btn flat dense icon="save_alt" :disable="!connected">
+        <q-btn flat dense icon="save_alt" :disable="!connected" @click="invoke('save_config')">
           <q-tooltip>
             Persist the current configuration to flash memory on the DAC.
           </q-tooltip>
