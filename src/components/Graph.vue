@@ -51,7 +51,8 @@ export default {
   watch: {
     filters: {
       handler() {
-
+        if (this.filters == undefined)
+          return;
         magnitudeSum.fill(0);
         const config = this.filters.configuration;
         for (var i in config) {

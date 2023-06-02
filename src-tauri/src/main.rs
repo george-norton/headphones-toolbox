@@ -116,9 +116,15 @@ struct Filter {
     db_gain: f64,
     enabled: bool
 }
+#[derive(Serialize, Deserialize)]
+struct Preprocessing {
+    preamp: f64,
+    reverse_stereo: bool
+}
 
 #[derive(Serialize, Deserialize)]
 struct Config {
+    preprocessing: Preprocessing,
     filters: Vec<Filter>
 }
 
@@ -130,6 +136,7 @@ async fn write_config(config: &str, connection_state: State<'_, Mutex<Connection
             match &device.configuration_interface {
                 Some(interface) => {
                     let mut filter_payload : Vec<u8> = Vec::new();
+                    let mut preprocessing_payload : Vec<u8> = Vec::new();
                     match serde_json::from_str::<Config>(config) {
                         Ok(cfg) => {
                             for filter in cfg.filters.iter() {
@@ -158,7 +165,9 @@ async fn write_config(config: &str, connection_state: State<'_, Mutex<Connection
                                     filter_payload.extend_from_slice(&filter.q.to_le_bytes());
                                 }
                             }
-
+                            preprocessing_payload.extend_from_slice(&cfg.preprocessing.preamp.to_le_bytes());
+                            preprocessing_payload.push(cfg.preprocessing.reverse_stereo as u8);
+                            preprocessing_payload.extend_from_slice(&[0u8; 3]);
                         },
                         Err(e) => {
                             println!("Error: {}", e);
@@ -166,9 +175,13 @@ async fn write_config(config: &str, connection_state: State<'_, Mutex<Connection
                         }
                     }
 
+
                     let mut buf : Vec<u8> = Vec::new();
                     buf.extend_from_slice(&(StructureTypes::SetConfiguration as u16).to_le_bytes());
-                    buf.extend_from_slice(&((8+filter_payload.len()) as u16).to_le_bytes());
+                    buf.extend_from_slice(&((12+filter_payload.len()) as u16).to_le_bytes());
+                    buf.extend_from_slice(&(StructureTypes::PreProcessingConfiguration as u16).to_le_bytes());
+                    buf.extend_from_slice(&((4+preprocessing_payload.len()) as u16).to_le_bytes());
+                    buf.extend_from_slice(&preprocessing_payload);
                     buf.extend_from_slice(&(StructureTypes::FilterConfiguration as u16).to_le_bytes());
                     buf.extend_from_slice(&((4+filter_payload.len()) as u16).to_le_bytes());
                     buf.extend_from_slice(&filter_payload);

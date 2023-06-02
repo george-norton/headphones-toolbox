@@ -1,7 +1,10 @@
 <script setup>
 import GraphVue from './components/Graph.vue'
 import FilterCardVue from './components/FilterCard.vue'
+import PreProcessingCardVue from './components/PreProcessingCard.vue'
+import CodecCardVue from './components/CodecCard.vue'
 import { appWindow } from '@tauri-apps/api/window'
+import { createDir, readTextFile, writeTextFile, BaseDirectory } from "@tauri-apps/api/fs";
 
 </script>
 
@@ -43,7 +46,7 @@ export default {
           const configData = JSON.parse(reader.result);
           var nextId = this.tabs.length
           configData.id = nextId
-          if (configData.name && configData.configuration) {
+          if (configData.name && configData.filters) {
             this.tabs.push(configData)
             this.tab = nextId
           }
@@ -69,7 +72,9 @@ export default {
     }
   },
   components: {
-    FilterCardVue
+    FilterCardVue,
+    PreProcessingCardVue,
+    CodecCardVue
   },
   methods: {
     pageHeight(offset) {
@@ -78,7 +83,7 @@ export default {
     },
     addConfiguration() {
       var nextId = this.tabs.length
-      this.tabs.push({ id: nextId, name: "Unnamed configuration", configuration: [] })
+      this.tabs.push({ id: nextId, name: "Unnamed configuration", filters: [], preprocessing: { preamp: 0, reverseStereo: false } })
       this.tab = nextId
     },
     deleteConfiguration() {
@@ -96,33 +101,53 @@ export default {
       }
     },
     async saveState() {
+      if (this.tab) {
+        var sendConfig = {
+          "preprocessing": { "preamp": this.tabs[this.tab].preprocessing.preamp, "reverse_stereo": this.tabs[this.tab].preprocessing.reverseStereo },
+          "filters": this.tabs[this.tab].filters
+        }
+        invoke('write_config', { config: JSON.stringify(sendConfig) }).then((message) => {
+        })
+      }
       var config = {
         "currentConfiguration": this.tab,
         "configurations": this.tabs,
         "deviceNames": deviceNames
       }
-      localStorage.setItem("state", JSON.stringify(config))
-
-      var sendConfig = {
-        "filters": this.tabs[this.tab].configuration
+      try {
+        await createDir("", { dir: BaseDirectory.AppData, recursive: true });
+        await writeTextFile(
+          {
+            contents: JSON.stringify(config, null, 4),
+            path: "configuration.json"
+          },
+          { dir: BaseDirectory.AppData }
+        );
+      } catch (e) {
+        console.log(e);
       }
-      console.log(JSON.stringify(sendConfig))
-      invoke('write_config', {config: JSON.stringify(sendConfig)}).then((message) => {
-        console.log("Write returned " + message)
-      })
+
     },
     loadState() {
-      var config = JSON.parse(localStorage.getItem("state"))
-      if (config) {
-        for (var c in config.configurations) {
-          if (config.configurations[c].id == config.currentConfiguration) {
-            this.tab = c
+      readTextFile(
+        "configuration.json",
+        { dir: BaseDirectory.AppData }
+      ).then((response) => {
+        var config = JSON.parse(response)
+        if (config) {
+          for (var c in config.configurations) {
+            if (config.configurations[c].id == config.currentConfiguration) {
+              this.tab = c
+            }
+            config.configurations[c].id = c
           }
-          config.configurations[c].id = c
+          this.tabs = reactive(config.configurations)
+          deviceNames = config.deviceNames
         }
-        this.tabs = reactive(config.configurations)
-        deviceNames = config.deviceNames
-      }
+      })
+        .catch((error) => {
+          console.error(error);
+        });
     },
     exportConfiguration() {
       const config = JSON.stringify(this.tabs[this.tab], null, 4)
@@ -168,12 +193,11 @@ export default {
             }
             else if (!this.connected) {
               if (devices.indexOf(this.device) != -1) {
-                invoke('open', {serialNumber: this.device}).then((result) => {
+                invoke('open', { serialNumber: this.device }).then((result) => {
                   if (result) {
                     this.$q.notify({ type: 'positive', message: "Device connected" })
                     this.connected = true
                   }
-                  console.log("Open returned " + message)
                 })
               }
             }
@@ -214,12 +238,12 @@ export default {
               @focus="(input) => input.target.select()" @update:model-value="$value => updateDeviceName($value)" />
           </q-popup-edit>
         </q-btn>
-        <q-btn flat dense icon="restart_alt" :disable="!connected" @click="invoke('reboot_bootloader')">
+        <q-btn flat dense icon="restart_alt" :disable="!connected" @click="invoke('reboot_bootloader')" class="hidden">
           <q-tooltip>
             Reboot this device into the bootloader so you can install new firmware.
           </q-tooltip>
         </q-btn>
-        <q-btn flat dense icon="delete" :disable="!connected">
+        <q-btn flat dense icon="delete" :disable="!connected" class="hidden">
           <q-tooltip>
             Reset the device to its factory default settings.
           </q-tooltip>
@@ -229,6 +253,18 @@ export default {
           <q-tooltip>
             Persist the current configuration to flash memory on the DAC.
           </q-tooltip>
+        </q-btn>
+        <q-btn flat dense icon="more_vert">
+          <q-menu>
+            <q-list style="min-width: 16em">
+              <q-item clickable v-close-popup :disable="!connected" @click="invoke('reboot_bootloader')">
+                <q-item-section>Reboot into bootloader</q-item-section>
+              </q-item>
+              <q-item clickable v-close-popup :disable="!connected">
+                <q-item-section>Erase saved configuration</q-item-section>
+              </q-item>
+            </q-list>
+          </q-menu>
         </q-btn>
       </q-toolbar>
 
@@ -275,31 +311,34 @@ export default {
               Export this configuration to a JSON file.
             </q-tooltip>
           </q-btn>
-          <q-btn flat dense icon="usb" text-color="grey-9" @click="">
+          <q-btn flat dense icon="usb" text-color="grey-9" @click="" class="hidden">
             <q-tooltip>
               Import configuration from the connected device.
             </q-tooltip>
           </q-btn>
-          <!--q-btn flat dense icon="more_vert" text-color="grey-9">
-                              <q-menu>
-                                <q-list style="min-width: 100px">
-                                  <q-item clickable v-close-popup>
-                                    <q-item-section>Export to JSON</q-item-section>
-                                  </q-item>
-                                  <q-item clickable v-close-popup>
-                                    <q-item-section>Import from JSON</q-item-section>
-                                  </q-item>
-                                  <q-item clickable v-close-popup>
-                                    <q-item-section>Import from device</q-item-section>
-                                  </q-item>
-                                </q-list>
-                              </q-menu>
-                            </q-btn-->
+          <q-btn flat dense icon="more_vert" text-color="grey-9">
+            <q-menu>
+              <q-list style="min-width: 100px">
+                <q-item clickable v-close-popup>
+                  <q-item-section>Export to JSON</q-item-section>
+                </q-item>
+                <q-item clickable v-close-popup>
+                  <q-item-section>Import from JSON</q-item-section>
+                </q-item>
+                <!--q-item clickable v-close-popup>
+                      <q-item-section>Import from device</q-item-section>
+                    </q-item-->
+              </q-list>
+            </q-menu>
+          </q-btn>
 
         </q-tabs>
         <q-tab-panels v-model="tab" animated class="bg-grey-1">
           <q-tab-panel v-for="t in tabs" :name="t.id" class="column q-gutter-md q-ma-none bg-grey-1">
-            <FilterCardVue v-model:filters="t.configuration" ref="filterCard" />
+            <PreProcessingCardVue v-model:preamp="t.preprocessing.preamp"
+              v-model:reverseStereo="t.preprocessing.reverseStereo" />
+            <FilterCardVue v-model:filters="t.filters" />
+            <CodecCardVue />
           </q-tab-panel>
         </q-tab-panels>
 

@@ -33,35 +33,20 @@ export default {
 <template>
     <q-card flat bordered class="q-mx-none">
         <q-card-section class="bg-grey-4 q-py-sm">
-            <div class="text-h6">Input preprocessing</div>
-        </q-card-section>
-        <q-card-section>
-            Nothing yet. Coming soon - PreAmp, Reverse Stereo.
-        </q-card-section>
-    </q-card>
-    <q-card flat bordered class="q-mx-none">
-        <q-card-section class="bg-grey-4 q-py-sm">
             <div class="text-h6">Parametric filters</div>
         </q-card-section>
         <q-card-section>
             <q-list class="col-12">
                 <q-item style="padding-left:0px; padding-right:0px" v-for="filter in filters">
-                    <FilterVue v-model:filter_type="filter.filter_type" v-model:f0="filter.f0" v-model:db_gain="filter.db_gain"
-                        v-model:q="filter.q" v-model:enabled="filter.enabled" @delete:filter="deleteFilter(filter)"
-                        ref="filter" />
+                    <FilterVue v-model:filter_type="filter.filter_type" v-model:f0="filter.f0"
+                        v-model:db_gain="filter.db_gain" v-model:q="filter.q" v-model:enabled="filter.enabled"
+                        @delete:filter="deleteFilter(filter)" ref="filter" />
                 </q-item>
             </q-list>
             <div class="row">
-                <q-btn fab icon="add" label="New Filter" color="primary" @click="addFilter()" :disable="this.filters.length >= 8" />
+                <q-btn fab icon="add" label="New Filter" color="primary" @click="addFilter()"
+                    :disable="this.filters.length >= 8" />
             </div>
-        </q-card-section>
-    </q-card>
-    <q-card flat bordered class="q-mx-none">
-        <q-card-section class="bg-grey-4 q-py-sm">
-            <div class="text-h6">Codec configuration</div>
-        </q-card-section>
-        <q-card-section>
-            Nothing yet. Coming soon - configure the various filters provided by the TI3060 DAC chip.
         </q-card-section>
     </q-card>
 </template>

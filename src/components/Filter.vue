@@ -34,7 +34,7 @@
           </q-item-section>
           <q-item-section side>
             <q-input type="number" dense hide-bottom-space shadow-text="hz" style="width:5em" :model-value="f0"
-              @update:model-value="(value) => $emit('update:f0', Number(value))" :min=0 :max=20000 />
+              @update:model-value="(value) => $emit('update:f0', Number(value))" :min=0 :max=20000  :debounce=1000 />
           </q-item-section>
         </q-item>
         <q-item v-if="['lowshelf', 'highshelf', 'peaking'].includes(filter_type)">
@@ -47,7 +47,7 @@
           </q-item-section>
           <q-item-section side>
             <q-input type="number" dense hide-bottom-space shadow-text="db" style="width:5em" :model-value="db_gain"
-              @update:model-value="(value) => $emit('update:db_gain', Number(value))" :min=-20 :max=20 />
+              @update:model-value="(value) => $emit('update:db_gain', Number(value))" :min=-20 :max=20 :debounce=1000 />
           </q-item-section>
         </q-item>
         <q-item>
@@ -61,7 +61,7 @@
           </q-item-section>
           <q-item-section side>
             <q-input type="number" dense hide-bottom-space style="width:5em" :model-value="q"
-              @update:model-value="(value) => $emit('update:q', Number(value))" :min=0 :max=33 />
+              @update:model-value="(value) => $emit('update:q', Number(value))" :min=0 :max=33  :debounce=1000 />
           </q-item-section>
         </q-item>
       </q-list>
