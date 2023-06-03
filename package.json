@@ -16,6 +16,7 @@
     "@vitejs/plugin-vue": "^4.2.1",
     "chart.js": "^4.3.0",
     "fft-js": "^0.0.12",
+    "lodash.debounce": "^4.0.8",
     "quasar": "^2.11.10",
     "sass": "^1.62.1",
     "vue": "^3.2.47",

@@ -141,7 +141,7 @@ async fn write_config(config: &str, connection_state: State<'_, Mutex<Connection
                         Ok(cfg) => {
                             for filter in cfg.filters.iter() {
                                 if filter.enabled {
-                                    let filter_type_val : u32;
+                                    let filter_type_val : u8;
                                     let filter_args;
 
                                     match filter.filter_type.as_str() {
@@ -156,8 +156,8 @@ async fn write_config(config: &str, connection_state: State<'_, Mutex<Connection
                                         "highshelf" => { filter_type_val = 8; filter_args = 3; },
                                         _ => return Ok(false)
                                     }
-
-                                    filter_payload.extend_from_slice(&filter_type_val.to_le_bytes());
+                                    filter_payload.push(filter_type_val);
+                                    filter_payload.extend_from_slice(&[0u8; 3]);
                                     filter_payload.extend_from_slice(&filter.f0.to_le_bytes());
                                     if filter_args == 3 {
                                         filter_payload.extend_from_slice(&filter.db_gain.to_le_bytes());
@@ -178,7 +178,7 @@ async fn write_config(config: &str, connection_state: State<'_, Mutex<Connection
 
                     let mut buf : Vec<u8> = Vec::new();
                     buf.extend_from_slice(&(StructureTypes::SetConfiguration as u16).to_le_bytes());
-                    buf.extend_from_slice(&((12+filter_payload.len()) as u16).to_le_bytes());
+                    buf.extend_from_slice(&((12+filter_payload.len()+preprocessing_payload.len()) as u16).to_le_bytes());
                     buf.extend_from_slice(&(StructureTypes::PreProcessingConfiguration as u16).to_le_bytes());
                     buf.extend_from_slice(&((4+preprocessing_payload.len()) as u16).to_le_bytes());
                     buf.extend_from_slice(&preprocessing_payload);
@@ -272,6 +272,7 @@ fn open(serial_number: &str, connection_state: State<Mutex<ConnectionState>>) ->
     };
 
     let mut connection = connection_state.lock().unwrap();
+    connection.connected = None;
     for device in devices.iter() {
         let address : u16 = ((device.bus_number() as u16) << 8) | (device.address() as u16);
         match connection.serial_numbers.get(&address) {
@@ -287,7 +288,10 @@ fn open(serial_number: &str, connection_state: State<Mutex<ConnectionState>>) ->
                             connection.connected = Some(ConnectedDevice {device_handle: handle, configuration_interface: configuration_interface });
                             return true
                         },
-                        Err(_) => return false
+                        Err(e) => {
+                            println!("Could not open {}", e);
+                            return false
+                        }
                     }
                 }
             },

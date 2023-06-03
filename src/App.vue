@@ -29,8 +29,8 @@ export default {
     this.saveState()
   },
   watch: {
-    tab() {
-      this.saveState()
+    device() {
+      this.openDevice()
     },
     tabs: {
       handler() {
@@ -103,7 +103,7 @@ export default {
     async saveState() {
       if (this.tab) {
         var sendConfig = {
-          "preprocessing": { "preamp": this.tabs[this.tab].preprocessing.preamp, "reverse_stereo": this.tabs[this.tab].preprocessing.reverseStereo },
+          "preprocessing": { "preamp": this.tabs[this.tab].preprocessing.preamp/100, "reverse_stereo": this.tabs[this.tab].preprocessing.reverseStereo },
           "filters": this.tabs[this.tab].filters
         }
         invoke('write_config', { config: JSON.stringify(sendConfig) }).then((message) => {
@@ -161,11 +161,19 @@ export default {
       deviceListKey.value += 1
       this.saveState()
     },
+    openDevice() {
+      invoke('open', { serialNumber: this.device }).then((result) => {
+        if (result) {
+          this.$q.notify({ type: 'positive', message: "Device connected" })
+          this.connected = true
+        }
+      })
+    },
     pollDevices() {
       invoke('poll_devices').then((message) => {
         var devices = JSON.parse(message)
         for (var d in devices) {
-          if (!(d in deviceNames)) {
+          if (!(devices[d] in deviceNames)) {
             if (devices.length == 1 && !("Ploopy Headphones" in deviceNames)) {
               // Most people will only have one device, so use a friendly name
               deviceNames[devices[d]] = "Ploopy Headphones"
@@ -193,12 +201,7 @@ export default {
             }
             else if (!this.connected) {
               if (devices.indexOf(this.device) != -1) {
-                invoke('open', { serialNumber: this.device }).then((result) => {
-                  if (result) {
-                    this.$q.notify({ type: 'positive', message: "Device connected" })
-                    this.connected = true
-                  }
-                })
+                this.openDevice()
               }
             }
           }

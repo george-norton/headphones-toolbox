@@ -7,6 +7,7 @@
 import { Line } from 'vue-chartjs'
 import { ref, reactive } from 'vue'
 import { getCssVar } from 'quasar'
+import debounce from 'lodash.debounce'
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -50,36 +51,36 @@ export default {
   components: { Line },
   watch: {
     filters: {
-      handler() {
-        if (this.filters == undefined)
-          return;
-        magnitudeSum.fill(0);
-        const config = this.filters.configuration;
-        for (var i in config) {
-            if (config[i].enabled) {
-              biquadFilter.type = config[i].filter_type;
-              biquadFilter.frequency.value = config[i].f0
-              biquadFilter.gain.value = config[i].db_gain
-              biquadFilter.Q.value = config[i].q
-              biquadFilter.getFrequencyResponse(frequency, magnitude, phaseResponse)
-                for (var j=0; j<STEPS; j+=1) {
-                  magnitudeSum[j] += magnitude[j]
-                }
-            }
-        }
-        this.chartData = reactive({
-          labels: frequency,
-          datasets: [
-            {
-              label: "title",
-              borderColor: getCssVar('primary'),
-              data: magnitudeSum,
-              stepped: false,
-              tension: 0
-            }
-          ]
-        })
-      },
+      handler: debounce(function() {
+          if (this.filters == undefined)
+            return;
+          magnitudeSum.fill(0);
+          const config = this.filters.filters;
+          for (var i in config) {
+              if (config[i].enabled) {
+                biquadFilter.type = config[i].filter_type;
+                biquadFilter.frequency.value = config[i].f0
+                biquadFilter.gain.value = config[i].db_gain
+                biquadFilter.Q.value = config[i].q
+                biquadFilter.getFrequencyResponse(frequency, magnitude, phaseResponse)
+                  for (var j=0; j<STEPS; j+=1) {
+                    magnitudeSum[j] += magnitude[j]
+                  }
+              }
+          }
+          this.chartData = {
+            labels: frequency,
+            datasets: [
+              {
+                label: "title",
+                borderColor: getCssVar('primary'),
+                data: magnitudeSum,
+                stepped: false,
+                tension: 0
+              }
+            ]
+          }
+        }, 25),
       deep: true
     }
   },
@@ -88,7 +89,7 @@ export default {
   },
   data() {
     return {
-      chartData: reactive({
+      chartData: {
         labels: frequency,
         datasets: [
           {
@@ -99,7 +100,7 @@ export default {
             tension: 0
           }
         ]
-      }),
+      },
       options:
       {
         maintainAspectRatio: false,
