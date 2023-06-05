@@ -6,6 +6,10 @@ Ploopy Headphones Toolbox is an application for configuring the filtering applie
 
 To use this tool you will need to be running a firmware image build from the [headphones-toolbox branch](https://github.com/george-norton/headphones/tree/headphones-toolbox), prebuild binaries are available [here](https://github.com/george-norton/headphones/releases/tag/headphones-toolbox-alpha-v1).
 
+## Closed Alpha Test
+
+Currently this repository is private, I figured it was a good idea to run a small closed alpha test before running a beta test with r/ploopy later. Let me know if you think extra people should be included in this first test.
+
 ## Quickstart guide
 
 Grab a firmware image from [here](https://github.com/george-norton/headphones/releases/tag/headphones-toolbox-alpha-v1) and flash it onto your DAC.
