@@ -1,6 +1,6 @@
 <template>
   <Line :data="chartData" :options="options"
-    style="background-image:url('src/assets/graph_bg.svg');background-repeat: no-repeat; background-size:contain" />
+    style="background-image:url('graph_bg.svg'); background-repeat: no-repeat; background-size:contain" />
 </template>
      
 <script>
@@ -51,41 +51,44 @@ export default {
   components: { Line },
   watch: {
     filters: {
-      handler: debounce(function() {
-          if (this.filters == undefined)
-            return;
-          magnitudeSum.fill(0);
-          const config = this.filters.filters;
-          for (var i in config) {
-              if (config[i].enabled) {
-                biquadFilter.type = config[i].filter_type;
-                biquadFilter.frequency.value = config[i].f0
-                biquadFilter.gain.value = config[i].db_gain
-                biquadFilter.Q.value = config[i].q
-                biquadFilter.getFrequencyResponse(frequency, magnitude, phaseResponse)
-                  for (var j=0; j<STEPS; j+=1) {
-                    magnitudeSum[j] += magnitude[j]
-                  }
-              }
+      handler: debounce(function () {
+        if (this.filters == undefined)
+          return;
+        magnitudeSum.fill(0);
+        const config = this.filters.filters;
+        for (var i in config) {
+          if (config[i].enabled) {
+            biquadFilter.type = config[i].filter_type;
+            biquadFilter.frequency.value = config[i].f0
+            biquadFilter.gain.value = config[i].db_gain
+            biquadFilter.Q.value = config[i].q
+            biquadFilter.getFrequencyResponse(frequency, magnitude, phaseResponse)
+            for (var j = 0; j < STEPS; j += 1) {
+              magnitudeSum[j] += magnitude[j]
+            }
           }
-          this.chartData = {
-            labels: frequency,
-            datasets: [
-              {
-                label: "title",
-                borderColor: getCssVar('primary'),
-                data: magnitudeSum,
-                stepped: false,
-                tension: 0
-              }
-            ]
-          }
-        }, 25),
+        }
+        this.chartData = {
+          labels: frequency,
+          datasets: [
+            {
+              label: "title",
+              borderColor: getCssVar('primary'),
+              data: magnitudeSum,
+              stepped: false,
+              tension: 0
+            }
+          ]
+        }
+      }, 25),
       deep: true
     }
   },
   props: {
-    filters: reactive([])
+    filters: {
+      type: Array,
+      default: []
+    }
   },
   data() {
     return {

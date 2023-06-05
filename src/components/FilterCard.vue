@@ -9,7 +9,10 @@ export default {
         }
     },
     props: {
-        filters: reactive([])
+        filters: {
+            type: Array,
+            default: []
+        }
     },
     methods: {
         addFilter() {

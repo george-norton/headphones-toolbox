@@ -12,9 +12,12 @@ import { createDir, readTextFile, writeTextFile, BaseDirectory } from "@tauri-ap
 import { ref, reactive } from 'vue'
 import { exportFile, getCssVar } from 'quasar'
 import { invoke } from '@tauri-apps/api'
+import { resolveResource } from '@tauri-apps/api/path'
+
 var idSequence = 0
 var deviceNames = { "none": "No device detected" }
 var deviceListKey = ref(0)
+var popup = ref(undefined)
 
 export default {
   setup() {
@@ -40,9 +43,11 @@ export default {
     },
     file() {
       const reader = new FileReader();
+      console.log(this.file);
       const data = reader.readAsText(this.file);
       reader.onload = () => {
         try {
+          console.log(reader.result)
           const configData = JSON.parse(reader.result);
           var nextId = this.tabs.length
           configData.id = nextId
@@ -82,9 +87,16 @@ export default {
       return { height: height }
     },
     addConfiguration() {
-      var nextId = this.tabs.length
-      this.tabs.push({ id: nextId, name: "Unnamed configuration", filters: [], preprocessing: { preamp: 0, reverseStereo: false } })
-      this.tab = nextId
+      resolveResource('resources/configuration.json').then((configJson) =>
+        readTextFile(configJson).then((defaultConfiguration) => {
+          var nextId = this.tabs.length
+          var config = JSON.parse(defaultConfiguration)
+          config.id = nextId
+          this.tabs.push(config)
+          this.tab = nextId
+        }))
+
+
     },
     deleteConfiguration() {
       for (var i = 0; i < this.tabs.length; i++) {
@@ -103,7 +115,7 @@ export default {
     async saveState() {
       if (this.tab) {
         var sendConfig = {
-          "preprocessing": { "preamp": this.tabs[this.tab].preprocessing.preamp/100, "reverse_stereo": this.tabs[this.tab].preprocessing.reverseStereo },
+          "preprocessing": { "preamp": this.tabs[this.tab].preprocessing.preamp / 100, "reverse_stereo": this.tabs[this.tab].preprocessing.reverseStereo },
           "filters": this.tabs[this.tab].filters
         }
         invoke('write_config', { config: JSON.stringify(sendConfig) }).then((message) => {
@@ -216,7 +228,7 @@ export default {
     <q-header elevated class="bg-primary text-white">
 
       <q-bar data-tauri-drag-region>
-        <q-icon style="pointer-events: none;" name="img:src/assets/ploopy.png" />
+        <q-icon style="pointer-events: none;" name="img:ploopy.png" />
         <div style="pointer-events: none;">Ploopy Headphones Toolbox</div>
         <q-space />
         <q-btn dense flat icon="minimize" @click="appWindow.minimize()" />
@@ -226,7 +238,7 @@ export default {
 
       <q-toolbar class="bg-primary text-white justify-start">
         <q-select filled v-model="device" :key="deviceListKey" :options="devices" option-value="value"
-          :option-label="item => deviceNames[item]" map-options dark options-dark="false" bg-color="primary"
+          :option-label="item => deviceNames[item]" map-options dark :options-dark=false bg-color="primary"
           ref="deviceSelect">
           <template v-slot:prepend>
             <q-icon name="headphones" />
@@ -236,7 +248,7 @@ export default {
           <q-tooltip>
             Rename this device.
           </q-tooltip>
-          <q-popup-edit v-slot="devicePopup" anchor="center middle" self="top middle" :cover="false">
+          <q-popup-edit v-model="popup" v-slot="devicePopup" anchor="center middle" self="top middle" :cover=false>
             <q-input v-model="deviceNames[device]" dense autofocus @keyup.enter="devicePopup.set"
               @focus="(input) => input.target.select()" @update:model-value="$value => updateDeviceName($value)" />
           </q-popup-edit>
@@ -290,7 +302,7 @@ export default {
             <q-tooltip>
               Rename this configuration.
             </q-tooltip>
-            <q-popup-edit auto-save v-slot="tabPopup" anchor="center middle" self="top middle" :cover="false">
+            <q-popup-edit auto-save v-model="popup" v-slot="tabPopup" anchor="center middle" self="top middle" :cover=false>
               <q-input v-model="tabs[tab].name" dense autofocus @keyup.enter="tabPopup.set"
                 @focus="(input) => input.target.select()" />
             </q-popup-edit>
@@ -329,8 +341,8 @@ export default {
                   <q-item-section>Import from JSON</q-item-section>
                 </q-item>
                 <!--q-item clickable v-close-popup>
-                      <q-item-section>Import from device</q-item-section>
-                    </q-item-->
+                        <q-item-section>Import from device</q-item-section>
+                      </q-item-->
               </q-list>
             </q-menu>
           </q-btn>

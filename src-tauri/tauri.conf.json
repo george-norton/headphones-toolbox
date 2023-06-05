@@ -38,7 +38,7 @@
       },
       "fs": {
         "all": true,
-        "scope": ["$APPDATA/", "$APPDATA/**"]
+        "scope": ["$APPDATA/", "$APPDATA/**", "$RESOURCE/resources/*"]
       },
       "path": {
         "all": true
@@ -54,11 +54,14 @@
         "icons/icon.ico"
       ],
       "identifier": "app.ploopy.headphones",
+      "resources": [
+        "resources/*"
+      ],
       
       "targets": "all"
     },
     "security": {
-      "csp": null
+      "csp": "default-src 'self'"
     },
     "updater": {
       "active": false
