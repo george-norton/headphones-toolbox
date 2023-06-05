@@ -4,12 +4,12 @@ Ploopy Headphones Toolbox is an application for configuring the filtering applie
 
 ![Screenshot Ploopy Headphones Toolbox.](screenshot.png)
 
-To use this tool you will need to be running a firmware image build from the [headphones-toolbox branch](https://github.com/george-norton/headphones/tree/headphones-toolbox), prebuild binaries are available [here]().
+To use this tool you will need to be running a firmware image build from the [headphones-toolbox branch](https://github.com/george-norton/headphones/tree/headphones-toolbox), prebuild binaries are available [here](https://github.com/george-norton/headphones/releases/tag/headphones-toolbox-alpha-v1).
 
 ## Quickstart guide
 
-Grab a firmware image from [here]() and flash it onto your DAC.
-Grab a build of Ploopy Headphones Toolbox from [here]() and install it on your PC.
+Grab a firmware image from [here](https://github.com/george-norton/headphones/releases/tag/headphones-toolbox-alpha-v1) and flash it onto your DAC.
+Grab a build of Ploopy Headphones Toolbox from [here](https://github.com/george-norton/headphones-toolbox/releases/tag/headphones-toolbox-alpha-v1) and install it on your PC.
 If you are a Linux user you will need to set a udev rule to allow users to access the USB device. As root, run:
 ```
 echo 'SUBSYSTEM=="usb", ATTRS{idVendor}=="2e8a", ATTRS{idProduct}=="fedd", MODE="666"' > /etc/udev/rules.d/100-ploopy-headphones.rules`
@@ -36,6 +36,10 @@ Implemented functionality:
 - Set a new device configuration.
 - Save the configuration to flash.
 - Load configs from flash.
+
+Known issues:
+- There is a short audio dropout when writing a config to flash.
+- If you create and delete configurations the application may stop syncing changes to the device until the application is restarted.
 
 ## Developer guide
 
