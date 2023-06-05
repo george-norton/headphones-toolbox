@@ -26,6 +26,7 @@ export default {
 
   },
   mounted() {
+    getVersion().then((version) => this.version = version)
     this.loadState()
     this.pollDevices()
     window.setInterval(this.pollDevices, 5000)
@@ -39,11 +40,16 @@ export default {
     },
     connected() {
       if (this.connected) {
-        this.saveState()
+        this.sendState()
       }
+    },
+    tab() {
+      this.sendState()
+      this.saveState()
     },
     tabs: {
       handler() {
+        this.sendState()
         this.saveState()
       },
       deep: true
@@ -119,7 +125,7 @@ export default {
         }
       }
     },
-    async saveState() {
+    sendState() {
       if (this.tab) {
         var sendConfig = {
           "preprocessing": { "preamp": this.tabs[this.tab].preprocessing.preamp / 100, "reverse_stereo": this.tabs[this.tab].preprocessing.reverseStereo },
@@ -128,26 +134,27 @@ export default {
         invoke('write_config', { config: JSON.stringify(sendConfig) }).then((message) => {
         })
       }
+    },
+    saveState: debounce(function() {
       var config = {
         "currentConfiguration": this.tab,
         "configurations": this.tabs,
         "deviceNames": deviceNames,
-        "version": await getVersion()
+        "version": this.version
       }
       try {
-        await createDir("", { dir: BaseDirectory.AppData, recursive: true });
-        await writeTextFile(
+        createDir("", { dir: BaseDirectory.AppData, recursive: true }).then(
+        writeTextFile(
           {
             contents: JSON.stringify(config, null, 4),
             path: "configuration.json"
           },
           { dir: BaseDirectory.AppData }
-        );
+        ))
       } catch (e) {
         console.log(e);
       }
-
-    },
+    }, 1000),
     loadState() {
       readTextFile(
         "configuration.json",
@@ -170,8 +177,8 @@ export default {
         });
     },
     async exportConfiguration() {
-      const exportData = this.tabs[this.tab];
-      exportData.version = await getVersion();
+      const exportData = this.tabs[this.tab]
+      exportData.version = this.version
       const config = JSON.stringify(exportData, null, 4)
       exportFile(this.tabs[this.tab].name + ".json", config)
     },
@@ -268,7 +275,7 @@ export default {
             Reboot this device into the bootloader so you can install new firmware.
           </q-tooltip>
         </q-btn>
-        <q-btn flat dense icon="delete" :disable="!connected" class="hidden">
+        <q-btn flat dense icon="delete" :disable="!connected" @click="invoke('factory_reset')" class="hidden">
           <q-tooltip>
             Reset the device to its factory default settings.
           </q-tooltip>

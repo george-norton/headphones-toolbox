@@ -97,6 +97,7 @@ enum StructureTypes {
     GetActiveConfiguration,     // Retrieves the current active configuration TLVs from RAM
     GetStoredConfiguration,     // Retrieves the current stored configuration TLVs from Flash
     SaveConfiguration,          // Writes the active configuration to Flash
+    FactoryReset,               // Invalidates the flash memory
 
     // Configuration structures, these are returned in the body of a command/response
     PreProcessingConfiguration = 0x200,
@@ -209,7 +210,7 @@ async fn write_config(config: &str, connection_state: State<'_, Mutex<Connection
 }
 
 #[tauri::command]
-async fn save_config(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<bool, ()> {
+fn save_config(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<bool, ()> {
     let connection = connection_state.lock().unwrap();
     match &connection.connected {
         Some(device) => {
@@ -217,6 +218,39 @@ async fn save_config(connection_state: State<'_, Mutex<ConnectionState>>) -> Res
                 Some(interface) => {
                     let mut buf : Vec<u8> = Vec::new();
                     buf.extend_from_slice(&(StructureTypes::SaveConfiguration as u16).to_le_bytes());
+                    buf.extend_from_slice(&(4u16).to_le_bytes());
+
+                    //println!("Write {} bytes to {}", buf.len(), interface.output);
+                    let mut r = device.device_handle.write_bulk(interface.output, &buf, Duration::from_millis(100));
+                    //println!("Write is Error: {}", r.is_err());
+
+                    let mut result = [0; 4];
+                    r = device.device_handle.read_bulk(interface.input, &mut result, Duration::from_millis(100));
+                    //println!("Read is Error: {} {:02X?}", r.is_err(), result);
+                    return Ok(true);
+                },
+                None => {
+                    println!("No interface");
+                }
+            }
+            return Ok(true);
+        },
+        None => {
+            println!("No connection");
+        }
+    }
+    return Ok(false);
+}
+
+#[tauri::command]
+fn factory_reset(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<bool, ()> {
+    let connection = connection_state.lock().unwrap();
+    match &connection.connected {
+        Some(device) => {
+            match &device.configuration_interface {
+                Some(interface) => {
+                    let mut buf : Vec<u8> = Vec::new();
+                    buf.extend_from_slice(&(StructureTypes::FactoryReset as u16).to_le_bytes());
                     buf.extend_from_slice(&(4u16).to_le_bytes());
 
                     //println!("Write {} bytes to {}", buf.len(), interface.output);
@@ -365,7 +399,7 @@ fn poll_devices(connection_state: State<Mutex<ConnectionState>>) -> String {
 fn main() {
     tauri::Builder::default()
         .manage(Mutex::new(ConnectionState::new()))
-        .invoke_handler(tauri::generate_handler![reboot_bootloader, poll_devices, open, write_config, save_config])
+        .invoke_handler(tauri::generate_handler![reboot_bootloader, poll_devices, open, write_config, save_config, factory_reset])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
