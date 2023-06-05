@@ -209,7 +209,7 @@ async fn write_config(config: &str, connection_state: State<'_, Mutex<Connection
 }
 
 #[tauri::command]
-async fn save_config(config: &str, connection_state: State<'_, Mutex<ConnectionState>>) -> Result<bool, ()> {
+async fn save_config(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<bool, ()> {
     let connection = connection_state.lock().unwrap();
     match &connection.connected {
         Some(device) => {

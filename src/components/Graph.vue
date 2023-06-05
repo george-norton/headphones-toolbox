@@ -80,14 +80,14 @@ export default {
             }
           ]
         }
-      }, 25),
+      }, 50),
       deep: true
     }
   },
   props: {
     filters: {
-      type: Array,
-      default: []
+      type: Object,
+      default: undefined
     }
   },
   data() {

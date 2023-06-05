@@ -1,7 +1,49 @@
-# Tauri + Vanilla TS
+# Ploopy Headphones Toolbox
 
-This template should help get you started developing with Tauri in vanilla HTML, CSS and Typescript.
+Ploopy Headphones Toolbox is an application for configuring the filtering applied by the Ploopy Headphones DAC without having to rebuild the firmware.
 
-## Recommended IDE Setup
+![Screenshot Ploopy Headphones Toolbox.](screenshot.png)
 
-- [VS Code](https://code.visualstudio.com/) + [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode) + [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
+To use this tool you will need to be running a firmware image build from the [headphones-toolbox branch](https://github.com/george-norton/headphones/tree/headphones-toolbox), prebuild binaries are available [here]().
+
+## Quickstart guide
+
+Grab a firmware image from [here]() and flash it onto your DAC.
+Grab a build of Ploopy Headphones Toolbox from [here]() and install it on your PC.
+If you are a Linux user you will need to set a udev rule to allow users to access the USB device. As root, run:
+```
+echo 'SUBSYSTEM=="usb", ATTRS{idVendor}=="2e8a", ATTRS{idProduct}=="fedd", MODE="666"' > /etc/udev/rules.d/100-ploopy-headphones.rules`
+udevadm control --reload-rules && udevadm trigger
+```
+Run the application, it should detect your device. Click the + button to add a configuration, when you modify the filters the frequency response graph and the filters running on the device will change in real time. If you start playing some music, then change the filters you can hear the result instantly. **_WARNING:_ Keep the volume low, and be cautious making changes as filers can cause the sound to become very loud.**
+If you come up with a config you like, click the save button in the top right to persist the configuration to flash memory.
+
+## Current development status
+
+The application is currently in Alpha status. It is not feature complete, but it does implement quite a bit of useful stuff.
+
+Missing functionality:
+- Cannot read the configuration back from the device.
+- Cannot report the supported API versions.
+- Cannot confugure the PCM3060 filters.
+- Cannot factory reset a device.
+- Not many errors are reported to the user.
+
+Implemented functionality:
+- Device discovery.
+- Microsoft OS descriptor 2.0 support, auto loads the winusb driver so we can configure the device.
+- Reboot device into bootloader (on Windows this reqires that you are already running a toolbox firmware).
+- Set a new device configuration.
+- Save the configuration to flash.
+- Load configs from flash.
+
+## Developer guide
+
+The application is build using [Tauri](https://tauri.app/), [Quasar](https://quasar.dev/) and a little [Rust](https://www.rust-lang.org/). These were picked for consistency with QMK who are using the same combination for their upcoming xap client application. The user interface itself is build with standard web technologies (vue3, quasar, html. typescript).
+
+To build the application from scratch in developer mode you will need to install nodejs and yarn, then run:
+```
+yarn install
+yarn tauri dev
+```
+Once started the application will automatically update when you change the code.

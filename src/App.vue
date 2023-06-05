@@ -13,6 +13,8 @@ import { ref, reactive } from 'vue'
 import { exportFile, getCssVar } from 'quasar'
 import { invoke } from '@tauri-apps/api'
 import { resolveResource } from '@tauri-apps/api/path'
+import { getVersion } from '@tauri-apps/api/app';
+import debounce from 'lodash.debounce'
 
 var idSequence = 0
 var deviceNames = { "none": "No device detected" }
@@ -34,6 +36,11 @@ export default {
   watch: {
     device() {
       this.openDevice()
+    },
+    connected() {
+      if (this.connected) {
+        this.saveState()
+      }
     },
     tabs: {
       handler() {
@@ -124,7 +131,8 @@ export default {
       var config = {
         "currentConfiguration": this.tab,
         "configurations": this.tabs,
-        "deviceNames": deviceNames
+        "deviceNames": deviceNames,
+        "version": await getVersion()
       }
       try {
         await createDir("", { dir: BaseDirectory.AppData, recursive: true });
@@ -161,8 +169,10 @@ export default {
           console.error(error);
         });
     },
-    exportConfiguration() {
-      const config = JSON.stringify(this.tabs[this.tab], null, 4)
+    async exportConfiguration() {
+      const exportData = this.tabs[this.tab];
+      exportData.version = await getVersion();
+      const config = JSON.stringify(exportData, null, 4)
       exportFile(this.tabs[this.tab].name + ".json", config)
     },
     importConfiguration() {
@@ -350,8 +360,7 @@ export default {
         </q-tabs>
         <q-tab-panels v-model="tab" animated class="bg-grey-1">
           <q-tab-panel v-for="t in tabs" :name="t.id" class="column q-gutter-md q-ma-none bg-grey-1">
-            <PreProcessingCardVue v-model:preamp="t.preprocessing.preamp"
-              v-model:reverseStereo="t.preprocessing.reverseStereo" />
+            <PreProcessingCardVue v-model:preamp="t.preprocessing.preamp" v-model:reverseStereo="t.preprocessing.reverseStereo" />
             <FilterCardVue v-model:filters="t.filters" />
             <CodecCardVue />
           </q-tab-panel>
