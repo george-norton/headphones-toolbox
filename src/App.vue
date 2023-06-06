@@ -332,13 +332,13 @@ export default {
 
           <q-space />
 
-          <q-btn flat dense icon="file_download" text-color="grey-9" @click="importConfiguration()">
+          <q-btn flat dense icon="file_download" text-color="grey-9" @click="importConfiguration()" class="hidden">
             <q-tooltip>
               Import a configuration from a JSON file.
             </q-tooltip>
             <q-file ref="importFile" class="hidden" accept=".json" clearable filled v-model="file" />
           </q-btn>
-          <q-btn flat dense icon="file_upload" text-color="grey-9" @click="exportConfiguration()">
+          <q-btn flat dense icon="file_upload" text-color="grey-9" @click="exportConfiguration()" class="hidden">
             <q-tooltip>
               Export this configuration to a JSON file.
             </q-tooltip>
@@ -351,10 +351,10 @@ export default {
           <q-btn flat dense icon="more_vert" text-color="grey-9">
             <q-menu>
               <q-list style="min-width: 100px">
-                <q-item clickable v-close-popup>
+                <q-item clickable v-close-popup  @click="exportConfiguration()">
                   <q-item-section>Export to JSON</q-item-section>
                 </q-item>
-                <q-item clickable v-close-popup>
+                <q-item clickable v-close-popup @click="importConfiguration()">
                   <q-item-section>Import from JSON</q-item-section>
                 </q-item>
                 <!--q-item clickable v-close-popup>
