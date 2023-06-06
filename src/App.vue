@@ -126,7 +126,7 @@ export default {
       }
     },
     sendState() {
-      if (this.tab) {
+      if (this.tab != undefined) {
         var sendConfig = {
           "preprocessing": { "preamp": this.tabs[this.tab].preprocessing.preamp / 100, "reverse_stereo": this.tabs[this.tab].preprocessing.reverseStereo },
           "filters": this.tabs[this.tab].filters
