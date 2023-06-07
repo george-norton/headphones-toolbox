@@ -24,8 +24,9 @@ export default {
 </script>
 <template>
     <q-card flat bordered class="q-mx-none">
-        <q-card-section class="bg-grey-4 q-py-sm">
+        <q-card-section class="bg-grey-4 q-py-sm row justify-between">
             <div class="text-h6">Codec configuration</div>
+            <q-chip color="red" text-color="white" icon="warning">Not implemented yet!</q-chip>
         </q-card-section>
         <q-card-section class="row q-gutter-md">
             <q-select :model-value="oversampling" :options="overSamplingOptions" map-options @update:model-value="(value) => $emit('update:oversampling', value.value)" label="Oversampling" class="col" />

@@ -28,8 +28,9 @@
             <b>
               Frequency (hz)
             </b>
-            <q-slider :model-value="f0" @update:model-value="(value) => $emit('update:f0', value)" label
-              :label-value="f0 + 'hz'" :min=1 :max=20000>
+            <!-- Tweak the scale to make it easier to pick low frequencies. TODO: use a real log scale -->
+            <q-slider :model-value="Math.sqrt(f0)" @update:model-value="(value) => $emit('update:f0', Math.round(value*value))" label
+              :label-value="f0 + 'hz'" :min=1 :max=141.421356237 :step=0.01>
             </q-slider>
           </q-item-section>
           <q-item-section side>

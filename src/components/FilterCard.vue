@@ -11,7 +11,7 @@ export default {
     },
     methods: {
         addFilter() {
-            this.filters.push({ filter_type: "lowpass", q: 0, f0: 0, db_gain: 0, enabled: true })
+            this.filters.push({ filter_type: "lowpass", q: 0, f0: 1, db_gain: 0, enabled: true })
         },
         deleteFilter(filter) {
             for (var i = 0; i < this.filters.length; i++) {
