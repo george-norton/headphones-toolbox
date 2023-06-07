@@ -60,8 +60,10 @@ export default {
       const data = reader.readAsText(this.file);
       reader.onload = () => {
         try {
-          console.log(reader.result)
           const configData = JSON.parse(reader.result);
+          if (! "codec" in configData) {
+            configData.codec = { "oversampling": 0, "phase": 0, "rolloff": 0, "de_emphasis": 0 }
+          }
           var nextId = this.tabs.length
           configData.id = nextId
           if (configData.name && configData.filters) {
@@ -108,8 +110,6 @@ export default {
           this.tabs.push(config)
           this.tab = nextId
         }))
-
-
     },
     deleteConfiguration() {
       for (var i = 0; i < this.tabs.length; i++) {
@@ -129,13 +129,14 @@ export default {
       if (this.tab != undefined) {
         var sendConfig = {
           "preprocessing": { "preamp": this.tabs[this.tab].preprocessing.preamp / 100, "reverse_stereo": this.tabs[this.tab].preprocessing.reverseStereo },
-          "filters": this.tabs[this.tab].filters
+          "filters": this.tabs[this.tab].filters,
+          "codec": { "oversampling": 0, "phase": 0, "rolloff": 0, "de_emphasis": 0 }
         }
         invoke('write_config', { config: JSON.stringify(sendConfig) }).then((message) => {
         })
       }
     },
-    saveState: debounce(function() {
+    saveState: debounce(function () {
       var config = {
         "currentConfiguration": this.tab,
         "configurations": this.tabs,
@@ -144,13 +145,13 @@ export default {
       }
       try {
         createDir("", { dir: BaseDirectory.AppData, recursive: true }).then(
-        writeTextFile(
-          {
-            contents: JSON.stringify(config, null, 4),
-            path: "configuration.json"
-          },
-          { dir: BaseDirectory.AppData }
-        ))
+          writeTextFile(
+            {
+              contents: JSON.stringify(config, null, 4),
+              path: "configuration.json"
+            },
+            { dir: BaseDirectory.AppData }
+          ))
       } catch (e) {
         console.log(e);
       }
@@ -163,6 +164,9 @@ export default {
         var config = JSON.parse(response)
         if (config) {
           for (var c in config.configurations) {
+            if (!("codec" in config.configurations[c])) {
+              config.configurations[c].codec = { "oversampling": 0, "phase": 0, "rolloff": 0, "de_emphasis": 0 }
+            }
             if (config.configurations[c].id == config.currentConfiguration) {
               this.tab = c
             }
@@ -242,7 +246,8 @@ export default {
 </script>
 <template>
   <q-layout view="hHh lpR fFf">
-    <q-header elevated class="bg-primary text-white">
+    <!--q-header elevated class="text-white" style="background-image: url('stripe.svg'); background-repeat: no-repeat; background-position: 80%; background-size: 30em"-->
+    <q-header elevated class="text-white">
 
       <q-bar data-tauri-drag-region>
         <q-icon style="pointer-events: none;" name="img:ploopy.png" />
@@ -253,7 +258,7 @@ export default {
         <q-btn dense flat icon="close" @click="appWindow.close()" />
       </q-bar>
 
-      <q-toolbar class="bg-primary text-white justify-start">
+      <q-toolbar class="text-white justify-start">
         <q-select filled v-model="device" :key="deviceListKey" :options="devices" option-value="value"
           :option-label="item => deviceNames[item]" map-options dark :options-dark=false bg-color="primary"
           ref="deviceSelect">
@@ -305,7 +310,7 @@ export default {
     <q-page-container>
       <q-page :style-fn="pageHeight" class="scroll overflow-auto">
 
-        <q-tabs v-model="tab" dense align="left" :breakpoint="0" class="bg-grey-1 text-black" ref="tabs">
+        <q-tabs v-model="tab" dense align="left" :breakpoint="0" class="bg-grey-1 text-black">
           <q-tab v-for="t in tabs" :name="t.id" :label="t.name" />
           <q-btn flat dense icon="add" text-color="grey-9" @click="$event => addConfiguration()">
             <q-tooltip>
@@ -319,7 +324,8 @@ export default {
             <q-tooltip>
               Rename this configuration.
             </q-tooltip>
-            <q-popup-edit auto-save v-model="popup" v-slot="tabPopup" anchor="center middle" self="top middle" :cover=false>
+            <q-popup-edit auto-save v-model="popup" v-slot="tabPopup" anchor="center middle" self="top middle"
+              :cover=false>
               <q-input v-model="tabs[tab].name" dense autofocus @keyup.enter="tabPopup.set"
                 @focus="(input) => input.target.select()" />
             </q-popup-edit>
@@ -351,25 +357,26 @@ export default {
           <q-btn flat dense icon="more_vert" text-color="grey-9">
             <q-menu>
               <q-list style="min-width: 100px">
-                <q-item clickable v-close-popup  @click="exportConfiguration()">
+                <q-item clickable v-close-popup @click="exportConfiguration()">
                   <q-item-section>Export to JSON</q-item-section>
                 </q-item>
                 <q-item clickable v-close-popup @click="importConfiguration()">
                   <q-item-section>Import from JSON</q-item-section>
                 </q-item>
-                <!--q-item clickable v-close-popup>
-                        <q-item-section>Import from device</q-item-section>
-                      </q-item-->
               </q-list>
             </q-menu>
           </q-btn>
-
         </q-tabs>
+
         <q-tab-panels v-model="tab" animated class="bg-grey-1">
-          <q-tab-panel v-for="t in tabs" :name="t.id" class="column q-gutter-md q-ma-none bg-grey-1">
-            <PreProcessingCardVue v-model:preamp="t.preprocessing.preamp" v-model:reverseStereo="t.preprocessing.reverseStereo" />
-            <FilterCardVue v-model:filters="t.filters" />
-            <CodecCardVue />
+          <q-tab-panel v-for="t in tabs" :name="t.id" class="bg-grey-1">
+            <div class="column q-gutter-md q-ma-none">
+              <PreProcessingCardVue v-model:preamp="t.preprocessing.preamp"
+                v-model:reverseStereo="t.preprocessing.reverseStereo" />
+              <FilterCardVue v-model:filters="t.filters" />
+              <CodecCardVue v-model:oversampling="t.codec.oversampling" v-model:phase="t.codec.phase"
+                v-model:rolloff="t.codec.rolloff" v-model:de_emphasis="t.codec.de_emphasis" />
+            </div>
           </q-tab-panel>
         </q-tab-panels>
 

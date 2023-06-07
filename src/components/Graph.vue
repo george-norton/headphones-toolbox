@@ -34,16 +34,16 @@ ChartJS.register(
 const audioCtx = new AudioContext()
 const biquadFilter = audioCtx.createBiquadFilter()
 
-const STEPS = 4096;
+const STEPS = 1024;
 const frequency = new Float32Array(STEPS);
 var magnitudeSum = new Float32Array(STEPS);
 var magnitude = new Float32Array(STEPS);
 var phaseResponse = new Float32Array(STEPS);
 
-// TODO: we plot with a logarithmic scale, so we have much better resolution
-// at high frequencies.
+// We plot with a logarithmic scale, so we copmpensate here to
+// get a uniform resolution at either end of the plot.
 for (var i = 0; i < STEPS; i++) {
-  frequency[i] = 20000 / STEPS * i;
+  frequency[i] = Math.pow(20000, i/STEPS);
 }
 
 export default {

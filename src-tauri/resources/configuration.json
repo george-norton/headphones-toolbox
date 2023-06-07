@@ -39,7 +39,13 @@
         }
     ],
     "preprocessing": {
-        "preamp": -10,
+        "preamp": -20,
         "reverseStereo": false
+    },
+    "codec": {
+        "oversampling": 0,
+        "phase": 0,
+        "rolloff": 0,
+        "de_emphasis": 0
     }
 }

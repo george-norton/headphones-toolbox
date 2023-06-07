@@ -1,13 +1,8 @@
 
 <script>
 import FilterVue from './Filter.vue'
-import { reactive, ref } from 'vue'
 
 export default {
-    data() {
-        return {
-        }
-    },
     props: {
         filters: {
             type: Array,
@@ -38,7 +33,7 @@ export default {
         <q-card-section class="bg-grey-4 q-py-sm">
             <div class="text-h6">Parametric filters</div>
         </q-card-section>
-        <q-card-section>
+        <q-card-section class="q-py-sm">
             <q-list class="col-12">
                 <q-item style="padding-left:0px; padding-right:0px" v-for="filter in filters">
                     <FilterVue v-model:filter_type="filter.filter_type" v-model:f0="filter.f0"
