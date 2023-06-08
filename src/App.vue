@@ -3,9 +3,11 @@ import GraphVue from './components/Graph.vue'
 import FilterCardVue from './components/FilterCard.vue'
 import PreProcessingCardVue from './components/PreProcessingCard.vue'
 import CodecCardVue from './components/CodecCard.vue'
-import { appWindow } from '@tauri-apps/api/window'
-import { createDir, readTextFile, writeTextFile, BaseDirectory } from "@tauri-apps/api/fs";
+import { createDir, readTextFile, writeTextFile, BaseDirectory } from "@tauri-apps/api/fs"
+import { useQuasar } from 'quasar'
 
+const $q = useQuasar();
+$q.dark.set("auto")
 </script>
 
 <script>
@@ -247,7 +249,7 @@ export default {
 <template>
   <q-layout view="hHh lpR fFf">
     <!--q-header elevated class="text-white" style="background-image: url('stripe.svg'); background-repeat: no-repeat; background-position: 80%; background-size: 30em"-->
-    <q-header elevated class="text-white">
+    <q-header elevated class="top-bar">
 
       <q-bar data-tauri-drag-region>
         <q-icon style="pointer-events: none;" name="img:ploopy.png" />
@@ -259,8 +261,8 @@ export default {
       </q-bar>
 
       <q-toolbar class="text-white justify-start">
-        <q-select filled v-model="device" :key="deviceListKey" :options="devices" option-value="value"
-          :option-label="item => deviceNames[item]" map-options dark :options-dark=false bg-color="primary"
+        <q-select filled dark :options-dark="$q.dark.isActive" v-model="device" :key="deviceListKey" :options="devices" option-value="value"
+          :option-label="item => deviceNames[item]" map-options
           ref="deviceSelect">
           <template v-slot:prepend>
             <q-icon name="headphones" />
@@ -310,9 +312,9 @@ export default {
     <q-page-container>
       <q-page :style-fn="pageHeight" class="scroll overflow-auto">
 
-        <q-tabs v-model="tab" dense align="left" :breakpoint="0" class="bg-grey-1 text-black">
+        <q-tabs v-model="tab" dense align="left" :breakpoint="0">
           <q-tab v-for="t in tabs" :name="t.id" :label="t.name" />
-          <q-btn flat dense icon="add" text-color="grey-9" @click="$event => addConfiguration()">
+          <q-btn flat dense icon="add" @click="$event => addConfiguration()">
             <q-tooltip>
               Add a new configuration.
             </q-tooltip>
@@ -320,7 +322,7 @@ export default {
 
           <q-separator vertical inset />
 
-          <q-btn flat dense icon="edit" text-color="grey-9">
+          <q-btn flat dense icon="edit">
             <q-tooltip>
               Rename this configuration.
             </q-tooltip>
@@ -330,7 +332,7 @@ export default {
                 @focus="(input) => input.target.select()" />
             </q-popup-edit>
           </q-btn>
-          <q-btn flat dense icon="delete" text-color="grey-9" @click="$event => deleteConfiguration()">
+          <q-btn flat dense icon="delete" @click="$event => deleteConfiguration()">
             <q-tooltip>
               Delete this configuration.
             </q-tooltip>
@@ -338,23 +340,23 @@ export default {
 
           <q-space />
 
-          <q-btn flat dense icon="file_download" text-color="grey-9" @click="importConfiguration()" class="hidden">
+          <q-btn flat dense icon="file_download" @click="importConfiguration()" class="hidden">
             <q-tooltip>
               Import a configuration from a JSON file.
             </q-tooltip>
             <q-file ref="importFile" class="hidden" accept=".json" clearable filled v-model="file" />
           </q-btn>
-          <q-btn flat dense icon="file_upload" text-color="grey-9" @click="exportConfiguration()" class="hidden">
+          <q-btn flat dense icon="file_upload" @click="exportConfiguration()" class="hidden">
             <q-tooltip>
               Export this configuration to a JSON file.
             </q-tooltip>
           </q-btn>
-          <q-btn flat dense icon="usb" text-color="grey-9" @click="" class="hidden">
+          <q-btn flat dense icon="usb" @click="" class="hidden">
             <q-tooltip>
               Import configuration from the connected device.
             </q-tooltip>
           </q-btn>
-          <q-btn flat dense icon="more_vert" text-color="grey-9">
+          <q-btn flat dense icon="more_vert">
             <q-menu>
               <q-list style="min-width: 100px">
                 <q-item clickable v-close-popup @click="exportConfiguration()">
@@ -368,8 +370,8 @@ export default {
           </q-btn>
         </q-tabs>
 
-        <q-tab-panels v-model="tab" animated class="bg-grey-1">
-          <q-tab-panel v-for="t in tabs" :name="t.id" class="bg-grey-1">
+        <q-tab-panels v-model="tab" animated >
+          <q-tab-panel v-for="t in tabs" :name="t.id" class="panel">
             <div class="column q-gutter-md q-ma-none">
               <PreProcessingCardVue v-model:preamp="t.preprocessing.preamp"
                 v-model:reverseStereo="t.preprocessing.reverseStereo" />
@@ -383,9 +385,9 @@ export default {
       </q-page>
     </q-page-container>
 
-    <q-footer elevated class="bg-grey-8 text-white">
+    <q-footer elevated>
 
-      <div class="block full-width bg-white">
+      <div class="block full-width">
         <GraphVue ref="graph" v-model:filters="tabs[tab]" />
       </div>
 

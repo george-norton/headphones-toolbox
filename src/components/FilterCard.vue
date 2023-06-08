@@ -30,8 +30,15 @@ export default {
 
 <template>
     <q-card flat bordered class="q-mx-none">
-        <q-card-section class="bg-grey-4 q-py-sm">
+        <q-card-section class="title-bar-lv1 q-py-xs">
             <div class="text-h6">Parametric filters</div>
+        </q-card-section>
+        <q-card-section class="q-pb-none">
+            <div class="info-box">
+                Parametric filters are audio processing filters implemented in software which runs on the RP2040 chip in the
+                DAC. This chip has a limited amount of processing power and if you try to enable too many filters you might
+                find it starts dropping audio samples.
+            </div>
         </q-card-section>
         <q-card-section class="q-py-sm">
             <q-list class="col-12">

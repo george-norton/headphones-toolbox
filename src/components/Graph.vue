@@ -1,6 +1,5 @@
 <template>
-  <Line :data="chartData" :options="options"
-    style="background-image:url('graph_bg.svg'); background-repeat: no-repeat; background-size:contain" />
+  <Line :data="chartData" :options="options" class="graph"/>
 </template>
      
 <script>
@@ -8,6 +7,7 @@ import { Line } from 'vue-chartjs'
 import { ref, reactive } from 'vue'
 import { getCssVar } from 'quasar'
 import debounce from 'lodash.debounce'
+import { useQuasar } from 'quasar'
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -44,6 +44,12 @@ var phaseResponse = new Float32Array(STEPS);
 // get a uniform resolution at either end of the plot.
 for (var i = 0; i < STEPS; i++) {
   frequency[i] = Math.pow(20000, i/STEPS);
+}
+
+function getTextColor() {
+  const $q = useQuasar();
+  if ($q.dark !== undefined && $q.dark.isActive) return "rgb(200, 200, 200)"
+  return "rgb(140, 140, 140)"
 }
 
 export default {
@@ -114,7 +120,7 @@ export default {
             pointStyle: false
           },
           line: {
-            borderWidth: 2
+            borderWidth: 3
           }
         },
         plugins: {
@@ -129,8 +135,7 @@ export default {
           x: {
             ticks: {
               display: true,
-              //maxRotation: 0,
-              //minRotation: 0
+              color: getTextColor()
             },
             grid: {
               display: false

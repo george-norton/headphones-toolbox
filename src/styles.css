@@ -39,6 +39,27 @@
   justify-content: center;
 }
 
+body.body--dark .q-header, body.body--dark .q-footer, body.body--dark .q-drawer {
+  background-color: #0d47a1;
+  color: #ffffff;
+  box-shadow: 0 0 10px 2px rgba(0, 0, 0, 0.8), 0 0px 10px rgba(0, 0, 0, 0.6);
+}
+
+.q-item.q-router-link--active, .q-item--active {
+  color: #ffffff;
+  fill: #ffffff;
+}
+
+q-card--light {
+  background-color: #fafafa;
+  color: #000000;
+}
+
+q-card--dark {
+  background-color: #616161;
+  color: #ffffff;
+}
+
 a {
   font-weight: 500;
   color: #646cff;
@@ -84,10 +105,33 @@ button {
   outline: none;
 }
 
-#greet-input {
-  margin-right: 5px;
+.info-box {
+  border-color: #bdbdbd;
+  border-style: none none none solid;
+  border-width: 3pt;
+  padding: 8px;
+  background-color: #bdbdbd22;
+  border-radius: 0px;
+  pointer-events: none;
+  user-select: none;
 }
 
+.panel {
+  background-color: #f6f6f6;
+}
+
+.title-bar-lv1 {
+  background-color: #e0e0e0;
+}
+.title-bar-lv2 {
+  background-color: #eeeeee;
+}
+.graph {
+  background-color: #ffffff;
+  background-image:url('/graph_bg.svg');
+  background-repeat: no-repeat;
+  background-size:contain;
+}
 @media (prefers-color-scheme: dark) {
   :root {
     color: #f6f6f6;
@@ -106,5 +150,24 @@ button {
 
   button:active {
     background-color: #0f0f0f69;
+  }
+
+  .panel {
+    background-color: #2f2f2f;
+  }
+
+  .title-bar-lv1 {
+    background-color: #424242;
+  }
+
+  .title-bar-lv2 {
+    background-color: #313131;
+  }
+
+  .graph {
+    background-color: #2f2f2f;
+    background-image:url('/graph_bg_dark.svg');
+    background-repeat: no-repeat;
+    background-size:contain;
   }
 }
