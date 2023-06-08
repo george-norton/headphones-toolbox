@@ -23,29 +23,20 @@
   text-align: center;
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: 0.75s;
-}
-
-.logo.tauri:hover {
-  filter: drop-shadow(0 0 2em #24c8db);
-}
-
 .row {
   display: flex;
   justify-content: center;
 }
 
-body.body--dark .q-header, body.body--dark .q-footer, body.body--dark .q-drawer {
+body.body--dark .q-header,
+body.body--dark .q-footer,
+body.body--dark .q-drawer {
   background-color: #0d47a1;
   color: #ffffff;
-  box-shadow: 0 0 10px 2px rgba(0, 0, 0, 0.8), 0 0px 10px rgba(0, 0, 0, 0.6);
 }
 
-.q-item.q-router-link--active, .q-item--active {
+.q-item.q-router-link--active,
+.q-item--active {
   color: #ffffff;
   fill: #ffffff;
 }
@@ -123,15 +114,18 @@ button {
 .title-bar-lv1 {
   background-color: #e0e0e0;
 }
+
 .title-bar-lv2 {
   background-color: #eeeeee;
 }
+
 .graph {
   background-color: #ffffff;
-  background-image:url('/graph_bg.svg');
+  background-image: url('/graph_bg.svg');
   background-repeat: no-repeat;
-  background-size:contain;
+  background-size: contain;
 }
+
 @media (prefers-color-scheme: dark) {
   :root {
     color: #f6f6f6;
@@ -166,8 +160,33 @@ button {
 
   .graph {
     background-color: #2f2f2f;
-    background-image:url('/graph_bg_dark.svg');
+    background-image: url('/graph_bg_dark.svg');
     background-repeat: no-repeat;
-    background-size:contain;
+    background-size: contain;
+  }
+
+  ::-webkit-scrollbar {
+    height: 12px;
+    width: 14px;
+    background: transparent;
+    z-index: 12;
+    overflow: visible;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    width: 10px;
+    background-color: #c1c1c1;
+    border-radius: 10px;
+    z-index: 12;
+    border: 4px solid rgba(0, 0, 0, 0);
+    background-clip: padding-box;
+    transition: background-color .32s ease-in-out;
+    margin: 4px;
+    min-height: 32px;
+    min-width: 32px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #c1c1c1;
   }
 }

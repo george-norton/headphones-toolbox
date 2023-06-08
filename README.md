@@ -3,6 +3,8 @@
 Ploopy Headphones Toolbox is an application for configuring the filtering applied by the Ploopy Headphones DAC without having to rebuild the firmware.
 
 ![Screenshot Ploopy Headphones Toolbox.](screenshot.png)
+![Screenshot Ploopy Headphones Toolbox.](screenshot-2.png)
+![Dark mode screenshot Ploopy Headphones Toolbox.](screenshot-3.png)
 
 To use this tool you will need to be running a firmware image build from the [headphones-toolbox branch](https://github.com/george-norton/headphones/tree/headphones-toolbox), prebuilt binaries are available [here](https://github.com/george-norton/headphones/releases/tag/headphones-toolbox-alpha-v1).
 
