@@ -80,7 +80,7 @@ export default {
             }
           ]
         }
-      }, 50),
+      }, 20),
       deep: true
     }
   },

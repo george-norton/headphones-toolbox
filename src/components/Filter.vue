@@ -28,13 +28,13 @@
             <b>
               Frequency (hz)
             </b>
-            <!-- Tweak the scale to make it easier to pick low frequencies. TODO: use a real log scale -->
-            <q-slider :model-value="Math.sqrt(f0)" @update:model-value="(value) => $emit('update:f0', Math.round(value*value))" label
-              :label-value="f0 + 'hz'" :min=1 :max=141.421356237 :step=0.01>
+            <!-- Use a logarithmic scale here as this is how the graph is plotted. It makes picking low frequencies easier. -->
+            <q-slider :model-value="Math.log(f0)/Math.log(20000)" @update:model-value="(value) => $emit('update:f0', Math.pow(20000,  value))" label
+              :label-value="Math.round(f0*100)/100 + 'hz'" :min=0 :max=1 :step=0.001>
             </q-slider>
           </q-item-section>
           <q-item-section side>
-            <q-input type="number" dense hide-bottom-space shadow-text="hz" style="width:5em" :model-value="f0"
+            <q-input type="number" dense hide-bottom-space shadow-text="hz" style="width:5em" :model-value="Math.round(f0)"
               @update:model-value="(value) => $emit('update:f0', Number(value))" :min=1 :max=20000
               :rules="[val => (val >= 1 && val <= 20000) || 'Frequency out of range']" :debounce=1000 />
           </q-item-section>
