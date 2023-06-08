@@ -262,7 +262,7 @@ export default {
       </q-bar>
 
       <q-toolbar class="text-white justify-start">
-        <q-select filled dark :options-dark="$q.dark.isActive" v-model="device" :key="deviceListKey" :options="devices" option-value="value"
+        <q-select dark :options-dark="$q.dark.isActive" v-model="device" :key="deviceListKey" :options="devices" option-value="value"
           :option-label="item => deviceNames[item]" map-options
           ref="deviceSelect">
           <template v-slot:prepend>
