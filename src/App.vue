@@ -3,10 +3,11 @@ import GraphVue from './components/Graph.vue'
 import FilterCardVue from './components/FilterCard.vue'
 import PreProcessingCardVue from './components/PreProcessingCard.vue'
 import CodecCardVue from './components/CodecCard.vue'
+import { appWindow } from '@tauri-apps/api/window'
 import { createDir, readTextFile, writeTextFile, BaseDirectory } from "@tauri-apps/api/fs"
 import { useQuasar } from 'quasar'
 
-const $q = useQuasar();
+const $q = useQuasar()
 $q.dark.set("auto")
 </script>
 
