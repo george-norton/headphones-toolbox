@@ -1,13 +1,15 @@
 
 <script>
 import FilterVue from './Filter.vue'
+import { ref } from 'vue'
 
 export default {
     props: {
         filters: {
             type: Array,
             default: []
-        }
+        },
+        expansion: ref(Boolean)
     },
     methods: {
         addFilter() {
@@ -22,6 +24,7 @@ export default {
             }
         }
     },
+    emits: ['update:expansion'],
     components: {
         FilterVue
     }
@@ -30,28 +33,31 @@ export default {
 
 <template>
     <q-card flat bordered class="q-mx-none">
-        <q-card-section class="title-bar-lv1 q-py-xs">
-            <div class="text-h6">Parametric filters</div>
-        </q-card-section>
-        <q-card-section class="q-pb-none">
-            <div class="info-box">
-                Parametric filters are audio processing filters implemented in software which runs on the RP2040 chip in the
-                DAC. This chip has a limited amount of processing power and if you try to enable too many filters you might
-                find it starts dropping audio samples.
-            </div>
-        </q-card-section>
-        <q-card-section class="q-py-sm">
-            <q-list class="col-12">
-                <q-item style="padding-left:0px; padding-right:0px" v-for="filter in filters">
-                    <FilterVue v-model:filter_type="filter.filter_type" v-model:f0="filter.f0"
-                        v-model:db_gain="filter.db_gain" v-model:q="filter.q" v-model:enabled="filter.enabled"
-                        @delete:filter="deleteFilter(filter)" ref="filter" />
-                </q-item>
-            </q-list>
-            <div class="row">
-                <q-btn fab icon="add" label="New Filter" color="primary" @click="addFilter()"
-                    :disable="this.filters.length >= 8" />
-            </div>
-        </q-card-section>
+        <q-expansion-item default-opened expand-separator :model-value="expansion"
+            @update:model-value="(value) => $emit('update:expansion', value)" label="Parametric filters"
+            header-class="title-bar-lv1">
+            <q-card-section class="q-pb-none">
+                <div class="info-box">
+                    Parametric filters are audio processing filters implemented in software which runs on the RP2040 chip in
+                    the
+                    DAC. This chip has a limited amount of processing power and if you try to enable too many filters you
+                    might
+                    find it starts dropping audio samples.
+                </div>
+            </q-card-section>
+            <q-card-section class="q-py-sm">
+                <q-list class="col-12">
+                    <q-item style="padding-left:0px; padding-right:0px" v-for="filter in filters">
+                        <FilterVue v-model:filter_type="filter.filter_type" v-model:f0="filter.f0"
+                            v-model:db_gain="filter.db_gain" v-model:q="filter.q" v-model:enabled="filter.enabled"
+                            @delete:filter="deleteFilter(filter)" ref="filter" />
+                    </q-item>
+                </q-list>
+                <div class="row">
+                    <q-btn fab icon="add" label="New Filter" color="primary" @click="addFilter()"
+                        :disable="this.filters.length >= 8" />
+                </div>
+            </q-card-section>
+        </q-expansion-item>
     </q-card>
 </template>

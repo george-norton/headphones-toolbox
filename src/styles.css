@@ -31,9 +31,11 @@
 body.body--dark .q-header,
 body.body--dark .q-footer,
 body.body--dark .q-drawer {
-  background-color: #0d47a1;
+  background-color: #383838;
   color: #ffffff;
 }
+
+
 
 .q-item.q-router-link--active,
 .q-item--active {
@@ -113,10 +115,12 @@ button {
 
 .title-bar-lv1 {
   background-color: #e0e0e0;
+  font-size: large;
 }
 
 .title-bar-lv2 {
   background-color: #eeeeee;
+  font-size: medium;
 }
 
 .graph {
@@ -130,6 +134,11 @@ button {
   :root {
     color: #f6f6f6;
     background-color: #2f2f2f;
+  }
+
+  .info-box {
+    color:#c1c1c1;
+    background-color: #262626;
   }
 
   a:hover {
@@ -189,4 +198,5 @@ button {
   ::-webkit-scrollbar-thumb:hover {
     background: #c1c1c1;
   }
+
 }

@@ -23,6 +23,7 @@ var idSequence = 0
 var deviceNames = { "none": "No device detected" }
 var deviceListKey = ref(0)
 var popup = ref(undefined)
+var expansion = ref([true, true, true])
 
 export default {
   setup() {
@@ -252,7 +253,7 @@ export default {
     <!--q-header elevated class="text-white" style="background-image: url('stripe.svg'); background-repeat: no-repeat; background-position: 80%; background-size: 30em"-->
     <q-header elevated class="top-bar">
 
-      <q-bar data-tauri-drag-region>
+      <q-bar data-tauri-drag-region class="title-bar">
         <q-icon style="pointer-events: none;" name="img:ploopy.png" />
         <div style="pointer-events: none;">Ploopy Headphones Toolbox</div>
         <q-space />
@@ -375,10 +376,10 @@ export default {
           <q-tab-panel v-for="t in tabs" :name="t.id" class="panel">
             <div class="column q-gutter-md q-ma-none">
               <PreProcessingCardVue v-model:preamp="t.preprocessing.preamp"
-                v-model:reverseStereo="t.preprocessing.reverseStereo" />
-              <FilterCardVue v-model:filters="t.filters" />
+                v-model:reverseStereo="t.preprocessing.reverseStereo" v-model:expansion="expansion[0]"/>
+              <FilterCardVue v-model:filters="t.filters" v-model:expansion="expansion[1]"/>
               <CodecCardVue v-model:oversampling="t.codec.oversampling" v-model:phase="t.codec.phase"
-                v-model:rolloff="t.codec.rolloff" v-model:de_emphasis="t.codec.de_emphasis" />
+                v-model:rolloff="t.codec.rolloff" v-model:de_emphasis="t.codec.de_emphasis" v-model:expansion="expansion[2]"/>
             </div>
           </q-tab-panel>
         </q-tab-panels>

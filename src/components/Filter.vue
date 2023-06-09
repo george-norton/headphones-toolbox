@@ -90,7 +90,8 @@ export default {
     f0: ref(Number),
     db_gain: ref(Number),
     q: ref(Number),
-    enabled: ref(Boolean)
+    enabled: ref(Boolean),
+    expansion: ref(Boolean)
   },
   emits: ['update:filter_type', 'update:f0', 'update:db_gain', 'update:q', 'update:enabled', 'delete:filter']
 }

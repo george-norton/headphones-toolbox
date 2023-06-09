@@ -86,7 +86,7 @@ export default {
             }
           ]
         }
-      }, 20),
+      }, 30),
       deep: true
     }
   },
