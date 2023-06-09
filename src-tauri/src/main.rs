@@ -122,157 +122,144 @@ struct Preprocessing {
     preamp: f64,
     reverse_stereo: bool
 }
-
+#[derive(Serialize, Deserialize)]
+struct Codec {
+    oversampling: u8,
+    phase: u8,
+    rolloff: u8,
+    de_emphasis: u8
+}
 #[derive(Serialize, Deserialize)]
 struct Config {
     preprocessing: Preprocessing,
-    filters: Vec<Filter>
+    filters: Vec<Filter>,
+    codec: Codec
+}
+
+fn send_cmd(connection_state: State<'_, Mutex<ConnectionState>>, buf: &[u8]) -> Result<Vec<u8>, &'static str> {
+    let connection = connection_state.lock().unwrap();
+    match &connection.connected {
+        Some(device) => {
+            match &device.configuration_interface {
+                Some(interface) => {
+                    //println!("Write {} bytes to {}", buf.len(), interface.output);
+                    let mut r = device.device_handle.write_bulk(interface.output, &buf, Duration::from_millis(100));
+                    //println!("Write is Error: {}", r.is_err());
+
+                    let mut result : Vec<u8> = vec![0; 4];
+                    device.device_handle.read_bulk(interface.input, &mut result, Duration::from_millis(100));
+                    let length : [u8; 2] = result[2..4].try_into().unwrap();
+                    let remaining = u16::from_be_bytes(length);
+                    if remaining > 4 {
+                        let mut value : Vec<u8> = vec![0; (remaining-4) as usize];
+                        device.device_handle.read_bulk(interface.input, &mut value, Duration::from_millis(100));
+                        result.append(&mut value);
+                    }
+                    //println!("Read is Error: {} {:02X?}", r.is_err(), result);
+                    return Ok(result);
+                },
+                None => {
+                    println!("No configuration interface, update your headphones firmware");
+                    return Err("No configuration interface");
+                }
+            }
+        },
+        None => {
+            println!("The device is not connected.");
+            return Err("Not connected");
+        }
+    }
 }
 
 #[tauri::command]
 async fn write_config(config: &str, connection_state: State<'_, Mutex<ConnectionState>>) -> Result<bool, ()> {
-    let connection = connection_state.lock().unwrap();
-    match &connection.connected {
-        Some(device) => {
-            match &device.configuration_interface {
-                Some(interface) => {
-                    let mut filter_payload : Vec<u8> = Vec::new();
-                    let mut preprocessing_payload : Vec<u8> = Vec::new();
-                    match serde_json::from_str::<Config>(config) {
-                        Ok(cfg) => {
-                            for filter in cfg.filters.iter() {
-                                if filter.enabled {
-                                    let filter_type_val : u8;
-                                    let filter_args;
+    let mut filter_payload : Vec<u8> = Vec::new();
+    let mut preprocessing_payload : Vec<u8> = Vec::new();
+    let mut codec_payload : Vec<u8> = Vec::new();
+    match serde_json::from_str::<Config>(config) {
+        Ok(cfg) => {
+            for filter in cfg.filters.iter() {
+                if filter.enabled {
+                    let filter_type_val : u8;
+                    let filter_args;
 
-                                    match filter.filter_type.as_str() {
-                                        "lowpass" => { filter_type_val = 0; filter_args = 2; },
-                                        "highpass" => { filter_type_val = 1; filter_args = 2; },
-                                        "bandpass_skirt" => { filter_type_val = 2; filter_args = 2; },
-                                        "bandpass" | "bandpass_peak" => { filter_type_val = 3; filter_args = 2; },
-                                        "notch" => { filter_type_val = 4; filter_args = 2; },
-                                        "allpass" => { filter_type_val = 5; filter_args = 2; },
-                                        "peaking" => { filter_type_val = 6; filter_args = 3; },
-                                        "lowshelf" => { filter_type_val = 7; filter_args = 3; },
-                                        "highshelf" => { filter_type_val = 8; filter_args = 3; },
-                                        _ => return Ok(false)
-                                    }
-                                    filter_payload.push(filter_type_val);
-                                    filter_payload.extend_from_slice(&[0u8; 3]);
-                                    filter_payload.extend_from_slice(&filter.f0.to_le_bytes());
-                                    if filter_args == 3 {
-                                        filter_payload.extend_from_slice(&filter.db_gain.to_le_bytes());
-                                    }
-                                    filter_payload.extend_from_slice(&filter.q.to_le_bytes());
-                                }
-                            }
-                            preprocessing_payload.extend_from_slice(&cfg.preprocessing.preamp.to_le_bytes());
-                            preprocessing_payload.push(cfg.preprocessing.reverse_stereo as u8);
-                            preprocessing_payload.extend_from_slice(&[0u8; 3]);
-                        },
-                        Err(e) => {
-                            println!("Error: {}", e);
-                            return Ok(false);
-                        }
+                    match filter.filter_type.as_str() {
+                        "lowpass" => { filter_type_val = 0; filter_args = 2; },
+                        "highpass" => { filter_type_val = 1; filter_args = 2; },
+                        "bandpass_skirt" => { filter_type_val = 2; filter_args = 2; },
+                        "bandpass" | "bandpass_peak" => { filter_type_val = 3; filter_args = 2; },
+                        "notch" => { filter_type_val = 4; filter_args = 2; },
+                        "allpass" => { filter_type_val = 5; filter_args = 2; },
+                        "peaking" => { filter_type_val = 6; filter_args = 3; },
+                        "lowshelf" => { filter_type_val = 7; filter_args = 3; },
+                        "highshelf" => { filter_type_val = 8; filter_args = 3; },
+                        _ => return Ok(false)
                     }
-
-
-                    let mut buf : Vec<u8> = Vec::new();
-                    buf.extend_from_slice(&(StructureTypes::SetConfiguration as u16).to_le_bytes());
-                    buf.extend_from_slice(&((12+filter_payload.len()+preprocessing_payload.len()) as u16).to_le_bytes());
-                    buf.extend_from_slice(&(StructureTypes::PreProcessingConfiguration as u16).to_le_bytes());
-                    buf.extend_from_slice(&((4+preprocessing_payload.len()) as u16).to_le_bytes());
-                    buf.extend_from_slice(&preprocessing_payload);
-                    buf.extend_from_slice(&(StructureTypes::FilterConfiguration as u16).to_le_bytes());
-                    buf.extend_from_slice(&((4+filter_payload.len()) as u16).to_le_bytes());
-                    buf.extend_from_slice(&filter_payload);
-
-                    //println!("Write {} bytes to {}", buf.len(), interface.output);
-                    let mut r = device.device_handle.write_bulk(interface.output, &buf, Duration::from_millis(100));
-                    //println!("Write is Error: {}", r.is_err());
-
-                    let mut result = [0; 4];
-                    r = device.device_handle.read_bulk(interface.input, &mut result, Duration::from_millis(100));
-                    //println!("Read is Error: {} {:02X?}", r.is_err(), result);
-                    return Ok(true);
-                },
-                None => {
-                    println!("No interface");
+                    filter_payload.push(filter_type_val);
+                    filter_payload.extend_from_slice(&[0u8; 3]);
+                    filter_payload.extend_from_slice(&filter.f0.to_le_bytes());
+                    if filter_args == 3 {
+                        filter_payload.extend_from_slice(&filter.db_gain.to_le_bytes());
+                    }
+                    filter_payload.extend_from_slice(&filter.q.to_le_bytes());
                 }
             }
-            return Ok(true);
+            preprocessing_payload.extend_from_slice(&cfg.preprocessing.preamp.to_le_bytes());
+            preprocessing_payload.push(cfg.preprocessing.reverse_stereo as u8);
+            preprocessing_payload.extend_from_slice(&[0u8; 3]);
+
+            codec_payload.push(cfg.codec.oversampling);
+            codec_payload.push(cfg.codec.phase);
+            codec_payload.push(cfg.codec.rolloff);
+            codec_payload.push(cfg.codec.de_emphasis);
         },
-        None => {
-            println!("No connection");
+        Err(e) => {
+            println!("Error: {}", e);
+            return Ok(false);
         }
     }
-    return Ok(false);
+
+    let mut buf : Vec<u8> = Vec::new();
+    buf.extend_from_slice(&(StructureTypes::SetConfiguration as u16).to_le_bytes());
+    buf.extend_from_slice(&((16+filter_payload.len()+preprocessing_payload.len()+codec_payload.len()) as u16).to_le_bytes());
+    buf.extend_from_slice(&(StructureTypes::PreProcessingConfiguration as u16).to_le_bytes());
+    buf.extend_from_slice(&((4+preprocessing_payload.len()) as u16).to_le_bytes());
+    buf.extend_from_slice(&preprocessing_payload);
+    buf.extend_from_slice(&(StructureTypes::FilterConfiguration as u16).to_le_bytes());
+    buf.extend_from_slice(&((4+filter_payload.len()) as u16).to_le_bytes());
+    buf.extend_from_slice(&filter_payload);
+    buf.extend_from_slice(&(StructureTypes::Pcm3060Configuration as u16).to_le_bytes());
+    buf.extend_from_slice(&((4+codec_payload.len()) as u16).to_le_bytes());
+    buf.extend_from_slice(&codec_payload);
+    
+    match &send_cmd(connection_state, &buf) {
+        Ok(_) => return Ok(true), // TODO: Check for NOK
+        Err(_) => return Err(())
+    }
 }
 
 #[tauri::command]
 fn save_config(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<bool, ()> {
-    let connection = connection_state.lock().unwrap();
-    match &connection.connected {
-        Some(device) => {
-            match &device.configuration_interface {
-                Some(interface) => {
-                    let mut buf : Vec<u8> = Vec::new();
-                    buf.extend_from_slice(&(StructureTypes::SaveConfiguration as u16).to_le_bytes());
-                    buf.extend_from_slice(&(4u16).to_le_bytes());
+    let mut buf : Vec<u8> = Vec::new();
+    buf.extend_from_slice(&(StructureTypes::SaveConfiguration as u16).to_le_bytes());
+    buf.extend_from_slice(&(4u16).to_le_bytes());
 
-                    //println!("Write {} bytes to {}", buf.len(), interface.output);
-                    let mut r = device.device_handle.write_bulk(interface.output, &buf, Duration::from_millis(100));
-                    //println!("Write is Error: {}", r.is_err());
-
-                    let mut result = [0; 4];
-                    r = device.device_handle.read_bulk(interface.input, &mut result, Duration::from_millis(100));
-                    //println!("Read is Error: {} {:02X?}", r.is_err(), result);
-                    return Ok(true);
-                },
-                None => {
-                    println!("No interface");
-                }
-            }
-            return Ok(true);
-        },
-        None => {
-            println!("No connection");
-        }
+    match &send_cmd(connection_state, &buf) {
+        Ok(_) => return Ok(true), // TODO: Check for NOK
+        Err(_) => return Err(())
     }
-    return Ok(false);
 }
 
 #[tauri::command]
 fn factory_reset(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<bool, ()> {
-    let connection = connection_state.lock().unwrap();
-    match &connection.connected {
-        Some(device) => {
-            match &device.configuration_interface {
-                Some(interface) => {
-                    let mut buf : Vec<u8> = Vec::new();
-                    buf.extend_from_slice(&(StructureTypes::FactoryReset as u16).to_le_bytes());
-                    buf.extend_from_slice(&(4u16).to_le_bytes());
+    let mut buf : Vec<u8> = Vec::new();
+    buf.extend_from_slice(&(StructureTypes::FactoryReset as u16).to_le_bytes());
+    buf.extend_from_slice(&(4u16).to_le_bytes());
 
-                    //println!("Write {} bytes to {}", buf.len(), interface.output);
-                    let mut r = device.device_handle.write_bulk(interface.output, &buf, Duration::from_millis(100));
-                    //println!("Write is Error: {}", r.is_err());
-
-                    let mut result = [0; 4];
-                    r = device.device_handle.read_bulk(interface.input, &mut result, Duration::from_millis(100));
-                    //println!("Read is Error: {} {:02X?}", r.is_err(), result);
-                    return Ok(true);
-                },
-                None => {
-                    println!("No interface");
-                }
-            }
-            return Ok(true);
-        },
-        None => {
-            println!("No connection");
-        }
+    match &send_cmd(connection_state, &buf) {
+        Ok(_) => return Ok(true), // TODO: Check for NOK
+        Err(_) => return Err(())
     }
-    return Ok(false);
 }
 
 #[tauri::command]
@@ -317,7 +304,7 @@ fn open(serial_number: &str, connection_state: State<Mutex<ConnectionState>>) ->
                             let configuration_interface = find_configuration_endpoints(&device);
                             match &configuration_interface {
                                 Some(i) => { handle.claim_interface(i.interface).unwrap(); },
-                                None => { println!("Could not detect a configuration interface"); }
+                                None => { println!("Could not detect a configuration interface"); return false; }
                             }
                             connection.connected = Some(ConnectedDevice {device_handle: handle, configuration_interface: configuration_interface });
                             return true

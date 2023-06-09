@@ -25,13 +25,14 @@
       <q-list dense bordered class="col-grow q-py-sm">
         <q-item>
           <q-item-section>
-            <div class="col">
-              <q-chip class="control-label" color=secondary text-color=white>Frequency</q-chip>
+            <div class="row justify-start items-center q-gutter-sm">
+              <q-chip icon="graphic_eq" class="control-label" color=secondary text-color=white>Frequency</q-chip>
+              <!--q-item-label caption lines="2">The centre frequency. this is where the signal starts getting attenuated.</q-item-label-->
             </div>
             <!-- Use a logarithmic scale here as this is how the graph is plotted. It makes picking low frequencies easier. -->
             <q-slider :model-value="Math.log(f0) / Math.log(20000)"
               @update:model-value="(value) => $emit('update:f0', Math.pow(20000, value))" label
-              :label-value="Math.round(f0 * 100) / 100 + 'hz'" :min=0 :max=1 :step=0.001>
+              :label-value="Math.round(f0 * 100) / 100 + 'hz'" :min=0 :max=1 :step=0.001 >
             </q-slider>
           </q-item-section>
           <q-item-section side>
@@ -40,14 +41,20 @@
               :max=20000 :rules="[val => (val >= 1 && val <= 20000) || 'Frequency out of range']" :debounce=1000 />
           </q-item-section>
         </q-item>
+
         <q-item v-if="['lowshelf', 'highshelf', 'peaking'].includes(filter_type)">
+
           <q-item-section>
-            <div class="col">
-              <q-chip class="control-label" color=secondary text-color=white>Gain (dB)</q-chip>
+            <div class="row justify-start items-center q-gutter-sm">
+              <q-chip icon="volume_up" class="control-label" color=secondary text-color=white>Gain</q-chip>
+              <!--q-item-label caption lines="2">The gain at the centre frequency, in dB. Positive for boost, negative for
+                cut.</q-item-label-->
             </div>
+
             <q-slider :model-value="db_gain" @update:model-value="(value) => $emit('update:db_gain', value)" :min=-20
               :max=20 :step=0.01 label :label-value="db_gain + 'db'" />
           </q-item-section>
+
           <q-item-section side>
             <q-input type="number" dense hide-bottom-space shadow-text="db" style="width:5em" :model-value="db_gain"
               @update:model-value="(value) => $emit('update:db_gain', Number(value))" :min=-20 :max=20
@@ -57,8 +64,9 @@
         <q-item>
 
           <q-item-section>
-            <div class="col">
-              <q-chip class="control-label" color=secondary text-color=white>Quality</q-chip>
+            <div class="row justify-start items-center q-gutter-sm">
+              <q-chip icon="auto_graph" class="control-label" color=secondary text-color=white>Quality</q-chip>
+              <!--q-item-label caption lines="2">The quality factor. It defines how aggressive the band pass attenuates from the centre frequency. When Q=sqrt(2) it is 1 octave wide</q-item-label-->
             </div>
             <q-slider :model-value="q" @update:model-value="(value) => $emit('update:q', value)" :min=0 :max=33 :step=0.01
               label />

@@ -32,8 +32,8 @@ export default {
             <q-card-section>
                 <q-item>
                     <q-item-section>
-                        <div class="col">
-                            <q-chip class="control-label" color=secondary text-color=white>PreAmp</q-chip>
+                        <div class="row justify-start items-center q-gutter-sm">
+                            <q-chip icon="volume_up" class="control-label" color=secondary text-color=white>PreAmp</q-chip>
                         </div>
                         <q-slider :model-value="preamp" @update:model-value="(value) => $emit('update:preamp', value)"
                             :min="-50" :max="50" :markers="10" :marker-labels="preampMarkerLabel"
