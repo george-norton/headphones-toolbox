@@ -24,12 +24,9 @@ export default {
             <q-card-section class="q-pb-none">
                 <div class="info-box">
                     These controls are used to preprocess audio samples before the rest of the audio processing takes place.
-                    The
-                    preamplifier is particularly useful as it is likely that the parametric filters will increase the
-                    magnitude
-                    of the audio samples at specific frequencies. When this happens the audio samples can get clipped at a
-                    maximum value which leads to audio crackling. Reducing the input sample volume with the preamplifier can
-                    avoid these artefacts.
+                    If you hear crackling noises while listening to music, it may be because the parametric filters are
+                    boosting the volume at certain frequencies. This can cause the filtered samples to be clipped at a
+                    maximum value. Reducing the input volume with the preamplifier can help alleviate the issue.
                 </div>
             </q-card-section>
             <q-card-section>
@@ -47,4 +44,5 @@ export default {
                     @update:model-value="(value) => $emit('update:reverseStereo', value)" />
             </q-card-section>
         </q-expansion-item>
-</q-card></template>
+    </q-card>
+</template>
