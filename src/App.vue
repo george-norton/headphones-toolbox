@@ -23,7 +23,7 @@ var idSequence = 0
 var deviceNames = { "none": "No device detected" }
 var deviceListKey = ref(0)
 var popup = ref(undefined)
-var expansion = ref([true, true, true])
+const defaultState = {"expanded": [true, true, true]}
 
 export default {
   setup() {
@@ -60,16 +60,16 @@ export default {
     },
     file() {
       const reader = new FileReader();
-      console.log(this.file);
       const data = reader.readAsText(this.file);
       reader.onload = () => {
         try {
           const configData = JSON.parse(reader.result);
-          if (! "codec" in configData) {
+          if (!("codec" in configData)) {
             configData.codec = { "oversampling": 0, "phase": 0, "rolloff": 0, "de_emphasis": 0 }
           }
           var nextId = this.tabs.length
           configData.id = nextId
+          configData.state = structuredClone(defaultState)
           if (configData.name && configData.filters) {
             this.tabs.push(configData)
             this.tab = nextId
@@ -110,7 +110,8 @@ export default {
         readTextFile(configJson).then((defaultConfiguration) => {
           var nextId = this.tabs.length
           var config = JSON.parse(defaultConfiguration)
-          config.id = nextId
+          config.id = nextId  
+          config.state = structuredClone(defaultState)
           this.tabs.push(config)
           this.tab = nextId
         }))
@@ -130,7 +131,7 @@ export default {
       }
     },
     sendState() {
-      if (this.tab != undefined) {
+      if (this.connected && this.tab !== undefined && this.tabs[this.tab] !== undefined) {
         var sendConfig = {
           "preprocessing": { "preamp": this.tabs[this.tab].preprocessing.preamp / 100, "reverse_stereo": this.tabs[this.tab].preprocessing.reverseStereo },
           "filters": this.tabs[this.tab].filters,
@@ -168,6 +169,9 @@ export default {
         var config = JSON.parse(response)
         if (config) {
           for (var c in config.configurations) {
+            if (!("state" in config.configurations[c])) {
+              config.configurations[c].state = structuredClone(defaultState)
+            }
             if (!("codec" in config.configurations[c])) {
               config.configurations[c].codec = { "oversampling": 0, "phase": 0, "rolloff": 0, "de_emphasis": 0 }
             }
@@ -187,6 +191,7 @@ export default {
     async exportConfiguration() {
       const exportData = this.tabs[this.tab]
       exportData.version = this.version
+      delete exportData.state
       const config = JSON.stringify(exportData, null, 4)
       exportFile(this.tabs[this.tab].name + ".json", config)
     },
@@ -376,10 +381,10 @@ export default {
           <q-tab-panel v-for="t in tabs" :name="t.id" class="panel">
             <div class="column q-gutter-md q-ma-none">
               <PreProcessingCardVue v-model:preamp="t.preprocessing.preamp"
-                v-model:reverseStereo="t.preprocessing.reverseStereo" v-model:expansion="expansion[0]"/>
-              <FilterCardVue v-model:filters="t.filters" v-model:expansion="expansion[1]"/>
+                v-model:reverseStereo="t.preprocessing.reverseStereo" v-model:expansion="t.state.expanded[0]"/>
+              <FilterCardVue v-model:filters="t.filters" v-model:expansion="t.state.expanded[1]"/>
               <CodecCardVue v-model:oversampling="t.codec.oversampling" v-model:phase="t.codec.phase"
-                v-model:rolloff="t.codec.rolloff" v-model:de_emphasis="t.codec.de_emphasis" v-model:expansion="expansion[2]"/>
+                v-model:rolloff="t.codec.rolloff" v-model:de_emphasis="t.codec.de_emphasis" v-model:expansion="t.state.expanded[2]"/>
             </div>
           </q-tab-panel>
         </q-tab-panels>
