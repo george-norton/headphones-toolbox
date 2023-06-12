@@ -135,8 +135,9 @@ export default {
         var sendConfig = {
           "preprocessing": { "preamp": this.tabs[this.tab].preprocessing.preamp / 100, "reverse_stereo": this.tabs[this.tab].preprocessing.reverseStereo },
           "filters": this.tabs[this.tab].filters,
-          "codec": { "oversampling": 0, "phase": 0, "rolloff": 0, "de_emphasis": 0 }
+          "codec": this.tabs[this.tab].codec
         }
+        console.log(JSON.stringify(sendConfig))
         invoke('write_config', { config: JSON.stringify(sendConfig) }).then((message) => {
         })
       }

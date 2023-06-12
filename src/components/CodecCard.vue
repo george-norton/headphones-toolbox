@@ -27,7 +27,7 @@ export default {
     <q-card flat bordered class="q-mx-none">
         <q-expansion-item default-opened expand-separator :model-value="expansion"
             @update:model-value="(value) => $emit('update:expansion', value)" label="Codec configuration"
-            caption="Not implemented yet!" header-class="title-bar-lv1">
+             header-class="title-bar-lv1">
             <q-card-section class="q-pb-none">
                 <div class="info-box">
                     The Texas Instruments PCM3060 codec chip is used as a digital to analog converter in the DAC. It has
@@ -36,14 +36,14 @@ export default {
             </q-card-section>
             <q-card-section class="row q-gutter-md">
                 <q-select :model-value="oversampling" :options="overSamplingOptions" map-options
-                    @update:model-value="(value) => $emit('update:oversampling', value)" label="Oversampling" class="col" />
+                    @update:model-value="(value) => $emit('update:oversampling', value.value)" label="Oversampling" class="col" />
                 <q-select :model-value="phase" :options="phaseOptions" map-options
-                    @update:model-value="(value) => $emit('update:phase', value)" label="Output Phase" class="col" />
+                    @update:model-value="(value) => $emit('update:phase', value.value)" label="Output Phase" class="col" />
                 <q-select :model-value="rolloff" :options="rolloffOptions" map-options
-                    @update:model-value="(value) => $emit('update:rolloff', value)" label="Digital Filter Rolloff"
+                    @update:model-value="(value) => $emit('update:rolloff', value.value)" label="Digital Filter Rolloff"
                     class="col" />
                 <q-select :model-value="de_emphasis" :options="deEmphasisOptions" map-options
-                    @update:model-value="(value) => $emit('update:de_emphasis', value)" label="Digital De-Emphasis"
+                    @update:model-value="(value) => $emit('update:de_emphasis', value.value)" label="Digital De-Emphasis"
                     class="col" />
             </q-card-section>
         </q-expansion-item>

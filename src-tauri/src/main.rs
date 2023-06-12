@@ -212,6 +212,7 @@ async fn write_config(config: &str, connection_state: State<'_, Mutex<Connection
             codec_payload.push(cfg.codec.phase);
             codec_payload.push(cfg.codec.rolloff);
             codec_payload.push(cfg.codec.de_emphasis);
+            println!("Payload: {:02X?}", codec_payload);
         },
         Err(e) => {
             println!("Error: {}", e);
