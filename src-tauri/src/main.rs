@@ -9,9 +9,12 @@ use std::collections::HashSet;
 use std::collections::HashMap;
 use std::sync::Mutex;
 use serde::{Serialize, Deserialize};
+use std::io::Cursor;
+use byteorder::{LittleEndian, ReadBytesExt};
+use std::io::SeekFrom;
+use std::io::Seek;
 
 pub const LIBUSB_RECIPIENT_DEVICE: u8 = 0x00;
-
 pub const LIBUSB_REQUEST_TYPE_VENDOR: u8 = 0x02 << 5;
 
 #[derive(Debug)]
@@ -115,6 +118,7 @@ struct Filter {
     q: f64,
     f0: f64,
     db_gain: f64,
+
     enabled: bool
 }
 #[derive(Serialize, Deserialize)]
@@ -136,26 +140,43 @@ struct Config {
     codec: Codec
 }
 
-fn send_cmd(connection_state: State<'_, Mutex<ConnectionState>>, buf: &[u8]) -> Result<Vec<u8>, &'static str> {
+fn send_cmd(connection_state: State<'_, Mutex<ConnectionState>>, buf: &[u8]) -> Result<[u8;256], &'static str> {
     let connection = connection_state.lock().unwrap();
     match &connection.connected {
         Some(device) => {
             match &device.configuration_interface {
                 Some(interface) => {
+                    let timeout = Duration::from_secs(1);
                     //println!("Write {} bytes to {}", buf.len(), interface.output);
-                    let mut r = device.device_handle.write_bulk(interface.output, &buf, Duration::from_millis(100));
-                    //println!("Write is Error: {}", r.is_err());
-
-                    let mut result : Vec<u8> = vec![0; 4];
-                    device.device_handle.read_bulk(interface.input, &mut result, Duration::from_millis(100));
-                    let length : [u8; 2] = result[2..4].try_into().unwrap();
-                    let remaining = u16::from_be_bytes(length);
-                    if remaining > 4 {
-                        let mut value : Vec<u8> = vec![0; (remaining-4) as usize];
-                        device.device_handle.read_bulk(interface.input, &mut value, Duration::from_millis(100));
-                        result.append(&mut value);
+                    match device.device_handle.write_bulk(interface.output, &buf, timeout) {
+                        Ok(len) => (),
+                        Err(err) => println!("Error {}", err)
                     }
-                    //println!("Read is Error: {} {:02X?}", r.is_err(), result);
+
+                    let mut result = [0; 256];
+                    let mut read_length : u16 = 0;
+                    let mut length : u16 = 4;
+                    while read_length < length {
+                        match device.device_handle.read_bulk(interface.input, &mut result, timeout) {
+                            Ok(len) => { 
+                                //println!("Read {} {}/{}", len, read_length, length);
+                                if read_length < 4 && len >=4 {
+                                    let length_bytes : [u8; 2] = result[2..4].try_into().unwrap();
+                                    length = u16::from_le_bytes(length_bytes);
+                                    //println!("Length: {}", length);
+                                    if length > 256 {
+                                        println!("Overflow! {}", length);
+                                        return Err("Overflow error");
+                                    }
+                                }
+                                read_length += len as u16;
+                            },
+                            Err(err) => { 
+                                println!("Read error {}", err);
+                                return Err("Read Error");
+                            }
+                        }
+                    }
                     return Ok(result);
                 },
                 None => {
@@ -172,7 +193,7 @@ fn send_cmd(connection_state: State<'_, Mutex<ConnectionState>>, buf: &[u8]) -> 
 }
 
 #[tauri::command]
-async fn write_config(config: &str, connection_state: State<'_, Mutex<ConnectionState>>) -> Result<bool, ()> {
+fn write_config(config: &str, connection_state: State<'_, Mutex<ConnectionState>>) -> Result<bool, ()> {
     let mut filter_payload : Vec<u8> = Vec::new();
     let mut preprocessing_payload : Vec<u8> = Vec::new();
     let mut codec_payload : Vec<u8> = Vec::new();
@@ -212,7 +233,6 @@ async fn write_config(config: &str, connection_state: State<'_, Mutex<Connection
             codec_payload.push(cfg.codec.phase);
             codec_payload.push(cfg.codec.rolloff);
             codec_payload.push(cfg.codec.de_emphasis);
-            println!("Payload: {:02X?}", codec_payload);
         },
         Err(e) => {
             println!("Error: {}", e);
@@ -247,6 +267,34 @@ fn save_config(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<bo
 
     match &send_cmd(connection_state, &buf) {
         Ok(_) => return Ok(true), // TODO: Check for NOK
+        Err(_) => return Err(())
+    }
+}
+
+#[tauri::command]
+fn load_config(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<bool, ()> {
+    let mut buf : Vec<u8> = Vec::new();
+    buf.extend_from_slice(&(StructureTypes::GetStoredConfiguration as u16).to_le_bytes());
+    buf.extend_from_slice(&(4u16).to_le_bytes());
+
+    match &send_cmd(connection_state, &buf) {
+        Ok(cfg) => {
+            let mut cur = Cursor::new(cfg);
+            //println!("Read the following cfg: {:02X?}", cfg);
+            let result_type_val = cur.read_u16::<LittleEndian>().unwrap();
+            let result_length_val = cur.read_u16::<LittleEndian>().unwrap();
+            //println!("T: {} L: {}", result_type_val, result_length_val);
+            let mut position = 4;
+            while position < result_length_val {
+                let type_val = cur.read_u16::<LittleEndian>().unwrap();
+                let length_val = cur.read_u16::<LittleEndian>().unwrap();
+                //println!("\tT: {} L: {}", type_val, length_val);
+                cur.seek(SeekFrom::Current((length_val-4).into()));
+                position += length_val;
+            }
+            
+            return Ok(true)
+        }, // TODO: Check for NOK
         Err(_) => return Err(())
     }
 }
@@ -387,7 +435,7 @@ fn poll_devices(connection_state: State<Mutex<ConnectionState>>) -> String {
 fn main() {
     tauri::Builder::default()
         .manage(Mutex::new(ConnectionState::new()))
-        .invoke_handler(tauri::generate_handler![reboot_bootloader, poll_devices, open, write_config, save_config, factory_reset])
+        .invoke_handler(tauri::generate_handler![reboot_bootloader, poll_devices, open, write_config, save_config, factory_reset, load_config])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

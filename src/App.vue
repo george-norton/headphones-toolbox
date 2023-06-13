@@ -12,7 +12,7 @@ $q.dark.set("auto")
 </script>
 
 <script>
-import { ref, reactive } from 'vue'
+import { ref, reactive, toRaw } from 'vue'
 import { exportFile, getCssVar } from 'quasar'
 import { invoke } from '@tauri-apps/api'
 import { resolveResource } from '@tauri-apps/api/path'
@@ -23,7 +23,7 @@ var idSequence = 0
 var deviceNames = { "none": "No device detected" }
 var deviceListKey = ref(0)
 var popup = ref(undefined)
-const defaultState = {"expanded": [true, true, true]}
+const defaultState = { "expanded": [true, true, true] }
 
 export default {
   setup() {
@@ -106,11 +106,23 @@ export default {
       return { height: height }
     },
     addConfiguration() {
+      var nextId = this.tabs.length
+      // Try not to make any changes to the sound on the connected headphones
+      // First try to clone the current config - if it exists
+      if (this.tabs.length > 0) {
+        var config = structuredClone(toRaw(this.tabs[this.tab]))
+        config.id = nextId
+        config.name = "Unnamed configuration"
+        config.state = structuredClone(defaultState)
+        this.tabs.push(config)
+        this.tab = nextId
+        return;
+      }
+      // TODO: Read config from device..
       resolveResource('resources/configuration.json').then((configJson) =>
         readTextFile(configJson).then((defaultConfiguration) => {
-          var nextId = this.tabs.length
           var config = JSON.parse(defaultConfiguration)
-          config.id = nextId  
+          config.id = nextId
           config.state = structuredClone(defaultState)
           this.tabs.push(config)
           this.tab = nextId
@@ -137,7 +149,6 @@ export default {
           "filters": this.tabs[this.tab].filters,
           "codec": this.tabs[this.tab].codec
         }
-        console.log(JSON.stringify(sendConfig))
         invoke('write_config', { config: JSON.stringify(sendConfig) }).then((message) => {
         })
       }
@@ -269,8 +280,8 @@ export default {
       </q-bar>
 
       <q-toolbar class="text-white justify-start">
-        <q-select borderless dark :options-dark="$q.dark.isActive" v-model="device" :key="deviceListKey" :options="devices" option-value="value"
-          :option-label="item => deviceNames[item]" map-options
+        <q-select borderless dark :options-dark="$q.dark.isActive" v-model="device" :key="deviceListKey"
+          :options="devices" option-value="value" :option-label="item => deviceNames[item]" map-options
           ref="deviceSelect">
           <template v-slot:prepend>
             <q-icon name="headphones" />
@@ -378,14 +389,15 @@ export default {
           </q-btn>
         </q-tabs>
 
-        <q-tab-panels v-model="tab" animated >
+        <q-tab-panels v-model="tab" animated>
           <q-tab-panel v-for="t in tabs" :name="t.id" class="panel">
             <div class="column q-gutter-md q-ma-none">
               <PreProcessingCardVue v-model:preamp="t.preprocessing.preamp"
-                v-model:reverseStereo="t.preprocessing.reverseStereo" v-model:expansion="t.state.expanded[0]"/>
-              <FilterCardVue v-model:filters="t.filters" v-model:expansion="t.state.expanded[1]"/>
+                v-model:reverseStereo="t.preprocessing.reverseStereo" v-model:expansion="t.state.expanded[0]" />
+              <FilterCardVue v-model:filters="t.filters" v-model:expansion="t.state.expanded[1]" />
               <CodecCardVue v-model:oversampling="t.codec.oversampling" v-model:phase="t.codec.phase"
-                v-model:rolloff="t.codec.rolloff" v-model:de_emphasis="t.codec.de_emphasis" v-model:expansion="t.state.expanded[2]"/>
+                v-model:rolloff="t.codec.rolloff" v-model:de_emphasis="t.codec.de_emphasis"
+                v-model:expansion="t.state.expanded[2]" />
             </div>
           </q-tab-panel>
         </q-tab-panels>

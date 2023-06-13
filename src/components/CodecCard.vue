@@ -31,7 +31,8 @@ export default {
             <q-card-section class="q-pb-none">
                 <div class="info-box">
                     The Texas Instruments PCM3060 codec chip is used as a digital to analog converter in the DAC. It has
-                    a few additional filtering capabilities which can be configured here.
+                    a few additional filtering capabilities which can be configured here. These options appear to have very
+                    little effect.
                 </div>
             </q-card-section>
             <q-card-section class="row q-gutter-md">
