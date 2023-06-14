@@ -48,6 +48,7 @@ export default {
       }
     },
     tab() {
+      invoke("load_config")
       this.sendState()
       this.saveState()
     },
@@ -64,12 +65,10 @@ export default {
       reader.onload = () => {
         try {
           const configData = JSON.parse(reader.result);
-          if (!("codec" in configData)) {
-            configData.codec = { "oversampling": 0, "phase": 0, "rolloff": 0, "de_emphasis": 0 }
-          }
+          this.migrateConfig(configData)
+
           var nextId = this.tabs.length
           configData.id = nextId
-          configData.state = structuredClone(defaultState)
           if (configData.name && configData.filters) {
             this.tabs.push(configData)
             this.tab = nextId
@@ -101,6 +100,21 @@ export default {
     CodecCardVue
   },
   methods: {
+    migrateConfig(config) {
+      if (!("state" in config)) {
+        config.state = structuredClone(defaultState)
+      }
+      if (!("codec" in config)) {
+        config.codec = { "oversampling": false, "phase": false, "rolloff": false, "de_emphasis": false }
+      }
+      else {
+        // Initially these we integers not booleans, so convert them.
+        config.codec.oversampling = config.codec.oversampling != 0
+        config.codec.phase = config.codec.phase != 0
+        config.codec.rolloff = config.codec.rolloff != 0
+        config.codec.de_emphasis = config.codec.de_emphasis != 0
+      }
+    },
     pageHeight(offset) {
       const height = offset ? `calc(100vh - ${offset}px)` : '100vh'
       return { height: height }
@@ -181,12 +195,7 @@ export default {
         var config = JSON.parse(response)
         if (config) {
           for (var c in config.configurations) {
-            if (!("state" in config.configurations[c])) {
-              config.configurations[c].state = structuredClone(defaultState)
-            }
-            if (!("codec" in config.configurations[c])) {
-              config.configurations[c].codec = { "oversampling": 0, "phase": 0, "rolloff": 0, "de_emphasis": 0 }
-            }
+            this.migrateConfig(config.configurations[c])
             if (config.configurations[c].id == config.currentConfiguration) {
               this.tab = c
             }

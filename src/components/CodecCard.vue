@@ -5,17 +5,17 @@ import { ref } from 'vue'
 export default {
     data() {
         return {
-            overSamplingOptions: [{ label: "x16", value: 0 }, { label: "x32", value: 1 }],
-            phaseOptions: [{ label: "Normal", value: 0 }, { label: "Inverted", value: 1 }],
-            rolloffOptions: [{ label: "Sharp", value: 0 }, { label: "Slow", value: 1 }],
-            deEmphasisOptions: [{ label: "Disabled", value: 0 }, { label: "Enabled", value: 1 }]
+            overSamplingOptions: [{ label: "x16", value: false }, { label: "x32", value: true }],
+            phaseOptions: [{ label: "Normal", value: false }, { label: "Inverted", value: true }],
+            rolloffOptions: [{ label: "Sharp", value: false }, { label: "Slow", value: true }],
+            deEmphasisOptions: [{ label: "Disabled", value: false }, { label: "Enabled", value: true }]
         }
     },
     props: {
-        oversampling: ref(Number),
-        phase: ref(Number),
-        rolloff: ref(Number),
-        de_emphasis: ref(Number),
+        oversampling: ref(Boolean),
+        phase: ref(Boolean),
+        rolloff: ref(Boolean),
+        de_emphasis: ref(Boolean),
         expansion: ref(Boolean)
     },
     emits: ['update:oversampling', 'update:phase', 'update:rolloff', 'update:de_emphasis', 'update:expansion'],

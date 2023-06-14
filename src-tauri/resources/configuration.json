@@ -43,9 +43,9 @@
         "reverseStereo": false
     },
     "codec": {
-        "oversampling": 0,
-        "phase": 0,
-        "rolloff": 0,
-        "de_emphasis": 0
+        "oversampling": false,
+        "phase": false,
+        "rolloff": false,
+        "de_emphasis": false
     }
 }

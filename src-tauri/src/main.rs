@@ -13,6 +13,7 @@ use std::io::Cursor;
 use byteorder::{LittleEndian, ReadBytesExt};
 use std::io::SeekFrom;
 use std::io::Seek;
+use std::default::Default;
 
 pub const LIBUSB_RECIPIENT_DEVICE: u8 = 0x00;
 pub const LIBUSB_REQUEST_TYPE_VENDOR: u8 = 0x02 << 5;
@@ -112,7 +113,7 @@ enum StructureTypes {
     VersionStatus = 0x400,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Default)]
 struct Filter {
     filter_type: String,
     q: f64,
@@ -121,19 +122,19 @@ struct Filter {
 
     enabled: bool
 }
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Default)]
 struct Preprocessing {
     preamp: f64,
     reverse_stereo: bool
 }
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Default)]
 struct Codec {
-    oversampling: u8,
-    phase: u8,
-    rolloff: u8,
-    de_emphasis: u8
+    oversampling: bool,
+    phase: bool,
+    rolloff: bool,
+    de_emphasis: bool
 }
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Default)]
 struct Config {
     preprocessing: Preprocessing,
     filters: Vec<Filter>,
@@ -229,10 +230,10 @@ fn write_config(config: &str, connection_state: State<'_, Mutex<ConnectionState>
             preprocessing_payload.push(cfg.preprocessing.reverse_stereo as u8);
             preprocessing_payload.extend_from_slice(&[0u8; 3]);
 
-            codec_payload.push(cfg.codec.oversampling);
-            codec_payload.push(cfg.codec.phase);
-            codec_payload.push(cfg.codec.rolloff);
-            codec_payload.push(cfg.codec.de_emphasis);
+            codec_payload.push(cfg.codec.oversampling as u8);
+            codec_payload.push(cfg.codec.phase as u8);
+            codec_payload.push(cfg.codec.rolloff as u8);
+            codec_payload.push(cfg.codec.de_emphasis as u8);
         },
         Err(e) => {
             println!("Error: {}", e);
@@ -281,17 +282,39 @@ fn load_config(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<bo
         Ok(cfg) => {
             let mut cur = Cursor::new(cfg);
             //println!("Read the following cfg: {:02X?}", cfg);
-            let result_type_val = cur.read_u16::<LittleEndian>().unwrap();
+            let _result_type_val = cur.read_u16::<LittleEndian>().unwrap();
             let result_length_val = cur.read_u16::<LittleEndian>().unwrap();
-            //println!("T: {} L: {}", result_type_val, result_length_val);
+            //println!("T: {} L: {}", _result_type_val, result_length_val);
             let mut position = 4;
+            let mut cfg : Config = Default::default();
             while position < result_length_val {
                 let type_val = cur.read_u16::<LittleEndian>().unwrap();
                 let length_val = cur.read_u16::<LittleEndian>().unwrap();
                 //println!("\tT: {} L: {}", type_val, length_val);
-                cur.seek(SeekFrom::Current((length_val-4).into()));
+                match type_val{
+                    x if x == StructureTypes::PreProcessingConfiguration as u16 => {
+                        cfg.preprocessing.preamp = cur.read_f64::<LittleEndian>().unwrap();
+                        cfg.preprocessing.reverse_stereo = cur.read_u8().unwrap() != 0;
+                        cur.seek(SeekFrom::Current(3)); // reserved bytes
+                    },
+                    x if x == StructureTypes::FilterConfiguration as u16 => {
+                        // TODO: Read the filters..
+                        cur.seek(SeekFrom::Current((length_val-4).into()));
+                    },
+                    x if x == StructureTypes::Pcm3060Configuration as u16 => {
+                        cfg.codec.oversampling = cur.read_u8().unwrap() != 0;
+                        cfg.codec.phase = cur.read_u8().unwrap() != 0;
+                        cfg.codec.rolloff = cur.read_u8().unwrap() != 0;
+                        cfg.codec.de_emphasis = cur.read_u8().unwrap() != 0;
+                    },
+                    _ => {
+                        println!("Unsupported TLV type {}", type_val);
+                    }
+                }
+                //println!("\tT: {} L: {}", type_val, length_val);
                 position += length_val;
             }
+            //println!("CFG {}", serde_json::to_string(&cfg).unwrap());
             
             return Ok(true)
         }, // TODO: Check for NOK
