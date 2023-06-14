@@ -40,7 +40,7 @@
     ],
     "preprocessing": {
         "preamp": -20,
-        "reverseStereo": false
+        "reverse_stereo": false
     },
     "codec": {
         "oversampling": false,

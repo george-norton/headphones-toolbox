@@ -48,7 +48,6 @@ export default {
       }
     },
     tab() {
-      invoke("load_config")
       this.sendState()
       this.saveState()
     },
@@ -114,10 +113,34 @@ export default {
         config.codec.rolloff = config.codec.rolloff != 0
         config.codec.de_emphasis = config.codec.de_emphasis != 0
       }
+      if ("reverseStereo" in config.preprocessing) {
+        config.preprocessing.reverse_stereo = config.preprocessing.reverseStereo
+        delete config.preprocessing.reverseStereo
+      }
+      console.log(config)
     },
     pageHeight(offset) {
       const height = offset ? `calc(100vh - ${offset}px)` : '100vh'
       return { height: height }
+    },
+    readDeviceConfiguration() {
+      invoke("load_config").then((deviceConfig) => {
+        var config = JSON.parse(deviceConfig)
+        config.id = this.tab
+        config.name = this.tabs[this.tab].name
+        config.state = this.tabs[this.tab].state
+        this.tabs[this.tab] = config
+      })
+    },
+    readDefaultConfiguration() {
+      resolveResource('resources/configuration.json').then((configJson) =>
+        readTextFile(configJson).then((defaultConfiguration) => {
+          var config = JSON.parse(defaultConfiguration)
+          config.id = this.tab
+          config.name = this.tabs[this.tab].name
+          config.state = this.tabs[this.tab].state
+          this.tabs[this.tab] = config
+        }))
     },
     addConfiguration() {
       var nextId = this.tabs.length
@@ -132,15 +155,23 @@ export default {
         this.tab = nextId
         return;
       }
-      // TODO: Read config from device..
-      resolveResource('resources/configuration.json').then((configJson) =>
-        readTextFile(configJson).then((defaultConfiguration) => {
-          var config = JSON.parse(defaultConfiguration)
-          config.id = nextId
-          config.state = structuredClone(defaultState)
-          this.tabs.push(config)
-          this.tab = nextId
-        }))
+      invoke("load_config").then((deviceConfig) => {
+        var config = JSON.parse(deviceConfig)
+        config.name = "Unnamed configuration"
+        config.id = nextId
+        config.state = structuredClone(defaultState)
+        this.tabs.push(config)
+        this.tab = nextId
+      }).catch(err => {
+        resolveResource('resources/configuration.json').then((configJson) =>
+          readTextFile(configJson).then((defaultConfiguration) => {
+            var config = JSON.parse(defaultConfiguration)
+            config.id = nextId
+            config.state = structuredClone(defaultState)
+            this.tabs.push(config)
+            this.tab = nextId
+          }))
+      })
     },
     deleteConfiguration() {
       for (var i = 0; i < this.tabs.length; i++) {
@@ -159,7 +190,7 @@ export default {
     sendState() {
       if (this.connected && this.tab !== undefined && this.tabs[this.tab] !== undefined) {
         var sendConfig = {
-          "preprocessing": { "preamp": this.tabs[this.tab].preprocessing.preamp / 100, "reverse_stereo": this.tabs[this.tab].preprocessing.reverseStereo },
+          "preprocessing": { "preamp": this.tabs[this.tab].preprocessing.preamp, "reverse_stereo": this.tabs[this.tab].preprocessing.reverse_stereo },
           "filters": this.tabs[this.tab].filters,
           "codec": this.tabs[this.tab].codec
         }
@@ -327,7 +358,7 @@ export default {
               <q-item clickable v-close-popup :disable="!connected" @click="invoke('reboot_bootloader')">
                 <q-item-section>Reboot into bootloader</q-item-section>
               </q-item>
-              <q-item clickable v-close-popup :disable="!connected">
+              <q-item clickable v-close-popup :disable="!connected" @click="invoke('factory_reset')">
                 <q-item-section>Erase saved configuration</q-item-section>
               </q-item>
             </q-list>
@@ -386,12 +417,19 @@ export default {
           </q-btn>
           <q-btn flat dense icon="more_vert">
             <q-menu>
-              <q-list style="min-width: 100px">
+              <q-list style="min-width: 14em">
                 <q-item clickable v-close-popup @click="exportConfiguration()">
                   <q-item-section>Export to JSON</q-item-section>
                 </q-item>
                 <q-item clickable v-close-popup @click="importConfiguration()">
                   <q-item-section>Import from JSON</q-item-section>
+                </q-item>
+                <q-separator />
+                <q-item clickable v-close-popup @click="readDeviceConfiguration()">
+                  <q-item-section>Read config from device</q-item-section>
+                </q-item>
+                <q-item clickable v-close-popup @click="readDefaultConfiguration()">
+                  <q-item-section>Reset config to default</q-item-section>
                 </q-item>
               </q-list>
             </q-menu>
@@ -402,7 +440,7 @@ export default {
           <q-tab-panel v-for="t in tabs" :name="t.id" class="panel">
             <div class="column q-gutter-md q-ma-none">
               <PreProcessingCardVue v-model:preamp="t.preprocessing.preamp"
-                v-model:reverseStereo="t.preprocessing.reverseStereo" v-model:expansion="t.state.expanded[0]" />
+                v-model:reverse_stereo="t.preprocessing.reverse_stereo" v-model:expansion="t.state.expanded[0]" />
               <FilterCardVue v-model:filters="t.filters" v-model:expansion="t.state.expanded[1]" />
               <CodecCardVue v-model:oversampling="t.codec.oversampling" v-model:phase="t.codec.phase"
                 v-model:rolloff="t.codec.rolloff" v-model:de_emphasis="t.codec.de_emphasis"

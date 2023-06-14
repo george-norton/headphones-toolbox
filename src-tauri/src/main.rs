@@ -113,13 +113,24 @@ enum StructureTypes {
     VersionStatus = 0x400,
 }
 
+enum FilterType {
+    Lowpass = 0,
+    Highpass,
+    BandpassSkirt,
+    BandpassPeak,
+    Notch,
+    Allpass,
+    Peaking,
+    LowShelf,
+    HighShelf
+}
+
 #[derive(Serialize, Deserialize, Default)]
 struct Filter {
     filter_type: String,
     q: f64,
     f0: f64,
     db_gain: f64,
-
     enabled: bool
 }
 #[derive(Serialize, Deserialize, Default)]
@@ -226,7 +237,7 @@ fn write_config(config: &str, connection_state: State<'_, Mutex<ConnectionState>
                     filter_payload.extend_from_slice(&filter.q.to_le_bytes());
                 }
             }
-            preprocessing_payload.extend_from_slice(&cfg.preprocessing.preamp.to_le_bytes());
+            preprocessing_payload.extend_from_slice(&(cfg.preprocessing.preamp/100.0).to_le_bytes());
             preprocessing_payload.push(cfg.preprocessing.reverse_stereo as u8);
             preprocessing_payload.extend_from_slice(&[0u8; 3]);
 
@@ -273,7 +284,7 @@ fn save_config(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<bo
 }
 
 #[tauri::command]
-fn load_config(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<bool, ()> {
+fn load_config(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<String, ()> {
     let mut buf : Vec<u8> = Vec::new();
     buf.extend_from_slice(&(StructureTypes::GetStoredConfiguration as u16).to_le_bytes());
     buf.extend_from_slice(&(4u16).to_le_bytes());
@@ -281,25 +292,54 @@ fn load_config(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<bo
     match &send_cmd(connection_state, &buf) {
         Ok(cfg) => {
             let mut cur = Cursor::new(cfg);
-            //println!("Read the following cfg: {:02X?}", cfg);
             let _result_type_val = cur.read_u16::<LittleEndian>().unwrap();
             let result_length_val = cur.read_u16::<LittleEndian>().unwrap();
-            //println!("T: {} L: {}", _result_type_val, result_length_val);
             let mut position = 4;
             let mut cfg : Config = Default::default();
             while position < result_length_val {
                 let type_val = cur.read_u16::<LittleEndian>().unwrap();
                 let length_val = cur.read_u16::<LittleEndian>().unwrap();
-                //println!("\tT: {} L: {}", type_val, length_val);
                 match type_val{
                     x if x == StructureTypes::PreProcessingConfiguration as u16 => {
-                        cfg.preprocessing.preamp = cur.read_f64::<LittleEndian>().unwrap();
+                        cfg.preprocessing.preamp = cur.read_f64::<LittleEndian>().unwrap() * 100.0;
                         cfg.preprocessing.reverse_stereo = cur.read_u8().unwrap() != 0;
                         cur.seek(SeekFrom::Current(3)); // reserved bytes
                     },
                     x if x == StructureTypes::FilterConfiguration as u16 => {
-                        // TODO: Read the filters..
-                        cur.seek(SeekFrom::Current((length_val-4).into()));
+                        let end = cur.position() + (length_val-4) as u64;
+                        while (cur.position() < end) {
+                            let filter_type = cur.read_u8().unwrap();
+                            let filter_type_str;
+                            cur.seek(SeekFrom::Current(3)); // reserved bytes
+                            let filter_args;
+
+                            match filter_type {
+                                x if x == FilterType::Lowpass as u8 => { filter_type_str = "lowpass"; filter_args = 2; },
+                                x if x == FilterType::Highpass as u8 => { filter_type_str = "highpass"; filter_args = 2; },
+                                x if x == FilterType::BandpassSkirt as u8 => { filter_type_str = "bandpass_skirt"; filter_args = 2; },
+                                x if x == FilterType::BandpassPeak as u8 => { filter_type_str = "bandpass_peak"; filter_args = 2; },
+                                x if x == FilterType::Notch as u8 => { filter_type_str = "notch"; filter_args = 2; },
+                                x if x == FilterType::Allpass as u8 => { filter_type_str = "allpass"; filter_args = 2; },
+                                x if x == FilterType::Peaking as u8 => { filter_type_str = "peaking"; filter_args = 3; },
+                                x if x == FilterType::LowShelf as u8 => { filter_type_str = "lowshelf"; filter_args = 3; },
+                                x if x == FilterType::HighShelf as u8 => { filter_type_str = "highshelf"; filter_args = 3; },
+                                _ => return { println!("Unknown filter type {}", filter_type); Err(()) }
+                            }
+                            let f0 = cur.read_f64::<LittleEndian>().unwrap();
+                            let db_gain;
+                            if filter_args == 3 {
+                                db_gain = cur.read_f64::<LittleEndian>().unwrap();
+                            } else {
+                                db_gain = 0.0;
+                            }
+                            let q = cur.read_f64::<LittleEndian>().unwrap();
+                            cfg.filters.push(Filter { filter_type: filter_type_str.to_string(), f0, db_gain, q, enabled: true })
+                        }
+
+                        if cur.position() != end {
+                            println!("Read off the end of the filters TLV");
+                            return Err(())
+                        }
                     },
                     x if x == StructureTypes::Pcm3060Configuration as u16 => {
                         cfg.codec.oversampling = cur.read_u8().unwrap() != 0;
@@ -314,9 +354,7 @@ fn load_config(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<bo
                 //println!("\tT: {} L: {}", type_val, length_val);
                 position += length_val;
             }
-            //println!("CFG {}", serde_json::to_string(&cfg).unwrap());
-            
-            return Ok(true)
+            return Ok(serde_json::to_string(&cfg).unwrap())
         }, // TODO: Check for NOK
         Err(_) => return Err(())
     }
@@ -324,13 +362,14 @@ fn load_config(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<bo
 
 #[tauri::command]
 fn factory_reset(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<bool, ()> {
+    println!("factory_reset");
     let mut buf : Vec<u8> = Vec::new();
     buf.extend_from_slice(&(StructureTypes::FactoryReset as u16).to_le_bytes());
     buf.extend_from_slice(&(4u16).to_le_bytes());
 
     match &send_cmd(connection_state, &buf) {
-        Ok(_) => return Ok(true), // TODO: Check for NOK
-        Err(_) => return Err(())
+        Ok(r) => { println!("Factory Reset {:02X?}", r); return Ok(true)}, // TODO: Check for NOK
+        Err(_) => { println!("Factory Reset Err"); return Err(()) }
     }
 }
 

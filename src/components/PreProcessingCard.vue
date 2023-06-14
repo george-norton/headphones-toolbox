@@ -10,10 +10,10 @@ export default {
     },
     props: {
         preamp: ref(0),
-        reverseStereo: ref(false),
+        reverse_stereo: ref(false),
         expansion: ref(Boolean)
     },
-    emits: ['update:preamp', 'update:reverseStereo', 'update:expansion']
+    emits: ['update:preamp', 'update:reverse_stereo', 'update:expansion']
 }
 </script>
 <template>
@@ -40,8 +40,8 @@ export default {
                             :label-value="preamp + '%'" label />
                     </q-item-section>
                 </q-item>
-                <q-checkbox label="Reverse Stereo" :model-value="reverseStereo"
-                    @update:model-value="(value) => $emit('update:reverseStereo', value)" />
+                <q-checkbox label="Reverse Stereo" :model-value="reverse_stereo"
+                    @update:model-value="(value) => $emit('update:reverse_stereo', value)" />
             </q-card-section>
         </q-expansion-item>
     </q-card>
