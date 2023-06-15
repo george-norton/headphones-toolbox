@@ -14,8 +14,8 @@ This is an Alpha test version of Ploopy Headphones Toolbox, it is pretty functio
 
 ## Quickstart guide
 
-Grab a firmware image from [here](https://github.com/george-norton/headphones/releases/tag/headphones-toolbox-alpha-v1) and flash it onto your DAC.
-Grab a build of Ploopy Headphones Toolbox from [here](https://github.com/george-norton/headphones-toolbox/releases/tag/headphones-toolbox-alpha-v2) and install it on your PC.
+Grab a firmware image from [here](https://github.com/george-norton/headphones/releases/tag/headphones-toolbox-alpha-v2) and flash it onto your DAC.
+Grab a build of Ploopy Headphones Toolbox from [here](https://github.com/george-norton/headphones-toolbox/releases/tag/headphones-toolbox-alpha-v4) and install it on your PC.
 
 If you are a Linux user you will need to set a udev rule to allow users to access the USB device. As root, run:
 ```
