@@ -376,7 +376,6 @@ fn load_config(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<St
 
 #[tauri::command]
 fn factory_reset(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<bool, ()> {
-    println!("factory_reset");
     let mut buf : Vec<u8> = Vec::new();
     buf.extend_from_slice(&(StructureTypes::FactoryReset as u16).to_le_bytes());
     buf.extend_from_slice(&(4u16).to_le_bytes());
@@ -421,10 +420,8 @@ fn read_version_info(connection_state: State<'_, Mutex<ConnectionState>>) -> Res
             let _version_tlv_length_val = cur.read_u16::<LittleEndian>().unwrap();
 
             let mut versions : VersionInfo = Default::default();
-            println!("Version Info {:02X?}", v);
             versions.current_version = cur.read_u16::<LittleEndian>().unwrap();
             versions.minimum_supported_version = cur.read_u16::<LittleEndian>().unwrap();
-            println!("Version Info {} {} {} {}", _result_type_val, _result_length_val, versions.current_version, versions.minimum_supported_version);
             cur.consume(4);
             let mut str_buf : Vec<u8> = Vec::new();
             cur.read_until(0u8, &mut str_buf).unwrap();
