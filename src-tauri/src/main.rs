@@ -14,6 +14,8 @@ use byteorder::{LittleEndian, ReadBytesExt};
 use std::io::SeekFrom;
 use std::io::Seek;
 use std::default::Default;
+use std::str;
+use std::io::BufRead;
 
 pub const LIBUSB_RECIPIENT_DEVICE: u8 = 0x00;
 pub const LIBUSB_REQUEST_TYPE_VENDOR: u8 = 0x02 << 5;
@@ -133,11 +135,13 @@ struct Filter {
     db_gain: f64,
     enabled: bool
 }
+
 #[derive(Serialize, Deserialize, Default)]
 struct Preprocessing {
     preamp: f64,
     reverse_stereo: bool
 }
+
 #[derive(Serialize, Deserialize, Default)]
 struct Codec {
     oversampling: bool,
@@ -145,11 +149,20 @@ struct Codec {
     rolloff: bool,
     de_emphasis: bool
 }
+
 #[derive(Serialize, Deserialize, Default)]
 struct Config {
     preprocessing: Preprocessing,
     filters: Vec<Filter>,
     codec: Codec
+}
+
+#[derive(Serialize, Deserialize, Default)]
+struct VersionInfo {
+    current_version : u16,
+    minimum_supported_version : u16,
+    git_hash: String,
+    pico_sdk_version: String
 }
 
 fn send_cmd(connection_state: State<'_, Mutex<ConnectionState>>, buf: &[u8]) -> Result<[u8;256], &'static str> {
@@ -353,6 +366,7 @@ fn load_config(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<St
                 }
                 //println!("\tT: {} L: {}", type_val, length_val);
                 position += length_val;
+                cur.set_position(position as u64);
             }
             return Ok(serde_json::to_string(&cfg).unwrap())
         }, // TODO: Check for NOK
@@ -391,6 +405,46 @@ fn reboot_bootloader(connection_state: State<Mutex<ConnectionState>>) -> bool {
     }
 }
 
+#[tauri::command]
+fn read_version_info(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<String, ()> {
+    let mut buf : Vec<u8> = Vec::new();
+    buf.extend_from_slice(&(StructureTypes::GetVersion as u16).to_le_bytes());
+    buf.extend_from_slice(&(4u16).to_le_bytes());
+
+    match &send_cmd(connection_state, &buf) {
+        Ok(v) => {
+            let mut cur = Cursor::new(v);
+            let _result_type_val = cur.read_u16::<LittleEndian>().unwrap();
+            let _result_length_val = cur.read_u16::<LittleEndian>().unwrap();
+
+            let _version_tlv_type_val = cur.read_u16::<LittleEndian>().unwrap();
+            let _version_tlv_length_val = cur.read_u16::<LittleEndian>().unwrap();
+
+            let mut versions : VersionInfo = Default::default();
+            println!("Version Info {:02X?}", v);
+            versions.current_version = cur.read_u16::<LittleEndian>().unwrap();
+            versions.minimum_supported_version = cur.read_u16::<LittleEndian>().unwrap();
+            println!("Version Info {} {} {} {}", _result_type_val, _result_length_val, versions.current_version, versions.minimum_supported_version);
+            cur.consume(4);
+            let mut str_buf : Vec<u8> = Vec::new();
+            cur.read_until(0u8, &mut str_buf).unwrap();
+            str_buf.pop();
+            match str::from_utf8(&str_buf) {
+                Ok(s) => versions.git_hash = s.to_string(),
+                Err(e) => panic!("Invalid UTF-8 sequence: {}", e),
+            };
+            str_buf.clear();
+            cur.read_until(0u8, &mut str_buf).unwrap();
+            str_buf.pop();
+            match str::from_utf8(&str_buf) {
+                Ok(s) => versions.pico_sdk_version = s.to_string(),
+                Err(e) => panic!("Invalid UTF-8 sequence: {}", e),
+            };
+            return Ok(serde_json::to_string(&versions).unwrap())
+        }, // TODO: Check for NOK
+        Err(_) => return Err(())
+    }
+}
 #[tauri::command]
 fn open(serial_number: &str, connection_state: State<Mutex<ConnectionState>>) -> bool {
     let context = match rusb::Context::new() {
@@ -497,7 +551,7 @@ fn poll_devices(connection_state: State<Mutex<ConnectionState>>) -> String {
 fn main() {
     tauri::Builder::default()
         .manage(Mutex::new(ConnectionState::new()))
-        .invoke_handler(tauri::generate_handler![reboot_bootloader, poll_devices, open, write_config, save_config, factory_reset, load_config])
+        .invoke_handler(tauri::generate_handler![reboot_bootloader, poll_devices, open, write_config, save_config, factory_reset, load_config, read_version_info])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

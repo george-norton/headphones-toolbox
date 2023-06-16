@@ -3,6 +3,8 @@ import GraphVue from './components/Graph.vue'
 import FilterCardVue from './components/FilterCard.vue'
 import PreProcessingCardVue from './components/PreProcessingCard.vue'
 import CodecCardVue from './components/CodecCard.vue'
+import AboutDialogVue from './components/AboutDialog.vue'
+import InfoMenuVue from './components/InfoMenu.vue'
 import { appWindow } from '@tauri-apps/api/window'
 import { createDir, readTextFile, writeTextFile, BaseDirectory } from "@tauri-apps/api/fs"
 import { useQuasar } from 'quasar'
@@ -43,8 +45,14 @@ export default {
       this.openDevice()
     },
     connected() {
+      this.validated = false
       if (this.connected) {
         this.sendState()
+        invoke("read_version_info").then((version) => {
+          this.versions = {...JSON.parse(version), ...{"serial_number": this.device}}
+
+          this.validated = true
+        })
       }
     },
     tab() {
@@ -90,13 +98,17 @@ export default {
       devices: reactive([]),
       deviceOptions: reactive([]),
       device: ref(undefined),
-      connected: ref(undefined)
+      connected: ref(undefined),
+      validated: ref(undefined),
+      versions: ref(undefined)
     }
   },
   components: {
     FilterCardVue,
     PreProcessingCardVue,
-    CodecCardVue
+    CodecCardVue,
+    AboutDialogVue,
+    InfoMenuVue
   },
   methods: {
     migrateConfig(config) {
@@ -117,7 +129,6 @@ export default {
         config.preprocessing.reverse_stereo = config.preprocessing.reverseStereo
         delete config.preprocessing.reverseStereo
       }
-      console.log(config)
     },
     pageHeight(offset) {
       const height = offset ? `calc(100vh - ${offset}px)` : '100vh'
@@ -307,7 +318,6 @@ export default {
 </script>
 <template>
   <q-layout view="hHh lpR fFf">
-    <!--q-header elevated class="text-white" style="background-image: url('stripe.svg'); background-repeat: no-repeat; background-position: 80%; background-size: 30em"-->
     <q-header elevated class="top-bar">
 
       <q-bar data-tauri-drag-region class="title-bar">
@@ -327,6 +337,8 @@ export default {
             <q-icon name="headphones" />
           </template>
         </q-select>
+
+        <InfoMenuVue :disable="!validated" v-bind:versions="versions"/>
         <q-btn flat dense icon="edit" :disable="!connected">
           <q-tooltip>
             Rename this device.
@@ -335,16 +347,6 @@ export default {
             <q-input v-model="deviceNames[device]" dense autofocus @keyup.enter="devicePopup.set"
               @focus="(input) => input.target.select()" @update:model-value="$value => updateDeviceName($value)" />
           </q-popup-edit>
-        </q-btn>
-        <q-btn flat dense icon="restart_alt" :disable="!connected" @click="invoke('reboot_bootloader')" class="hidden">
-          <q-tooltip>
-            Reboot this device into the bootloader so you can install new firmware.
-          </q-tooltip>
-        </q-btn>
-        <q-btn flat dense icon="delete" :disable="!connected" @click="invoke('factory_reset')" class="hidden">
-          <q-tooltip>
-            Reset the device to its factory default settings.
-          </q-tooltip>
         </q-btn>
         <q-space />
         <q-btn flat dense icon="save_alt" :disable="!connected" @click="invoke('save_config')">
@@ -361,10 +363,16 @@ export default {
               <q-item clickable v-close-popup :disable="!connected" @click="invoke('factory_reset')">
                 <q-item-section>Erase saved configuration</q-item-section>
               </q-item>
+              <q-separator />
+              <q-item clickable v-close-popup @click="this.$refs.about.show()">
+                <q-item-section>About</q-item-section>
+              </q-item>
             </q-list>
           </q-menu>
         </q-btn>
       </q-toolbar>
+
+      <AboutDialogVue ref="about" />
 
     </q-header>
 
@@ -396,25 +404,7 @@ export default {
               Delete this configuration.
             </q-tooltip>
           </q-btn>
-
           <q-space />
-
-          <q-btn flat dense icon="file_download" @click="importConfiguration()" class="hidden">
-            <q-tooltip>
-              Import a configuration from a JSON file.
-            </q-tooltip>
-            <q-file ref="importFile" class="hidden" accept=".json" clearable filled v-model="file" />
-          </q-btn>
-          <q-btn flat dense icon="file_upload" @click="exportConfiguration()" class="hidden">
-            <q-tooltip>
-              Export this configuration to a JSON file.
-            </q-tooltip>
-          </q-btn>
-          <q-btn flat dense icon="usb" @click="" class="hidden">
-            <q-tooltip>
-              Import configuration from the connected device.
-            </q-tooltip>
-          </q-btn>
           <q-btn flat dense icon="more_vert">
             <q-menu>
               <q-list style="min-width: 14em">
@@ -424,8 +414,7 @@ export default {
                 <q-item clickable v-close-popup @click="importConfiguration()">
                   <q-item-section>Import from JSON</q-item-section>
                 </q-item>
-                <q-separator />
-                <q-item clickable v-close-popup @click="readDeviceConfiguration()">
+                <q-item clickable v-close-popup :disable="!connected" @click="readDeviceConfiguration()">
                   <q-item-section>Read config from device</q-item-section>
                 </q-item>
                 <q-item clickable v-close-popup @click="readDefaultConfiguration()">
