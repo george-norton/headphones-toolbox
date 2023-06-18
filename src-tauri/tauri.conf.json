@@ -40,6 +40,9 @@
         "all": true,
         "scope": ["$APPDATA/", "$APPDATA/**", "$RESOURCE/resources/*"]
       },
+      "os": {
+        "all": true 
+      },
       "path": {
         "all": true
       }

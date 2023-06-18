@@ -32,7 +32,8 @@
             <!-- Use a logarithmic scale here as this is how the graph is plotted. It makes picking low frequencies easier. -->
             <q-slider :model-value="Math.log(f0) / Math.log(20000)"
               @update:model-value="(value) => $emit('update:f0', Math.pow(20000, value))" label
-              :label-value="Math.round(f0 * 100) / 100 + 'hz'" :min=0 :max=1 :step=0.001 >
+              :label-value="Math.round(f0 * 100) / 100 + 'hz'" :min=0 :max=1 :step=0.001
+              track-color="blue-grey-6" inner-track-color="grey-4" selection-color="primary">
             </q-slider>
           </q-item-section>
           <q-item-section side>
@@ -69,7 +70,7 @@
               <!--q-item-label caption lines="2">The quality factor. It defines how aggressive the band pass attenuates from the centre frequency. When Q=sqrt(2) it is 1 octave wide</q-item-label-->
             </div>
             <q-slider :model-value="q" @update:model-value="(value) => $emit('update:q', value)" :min=0 :max=33 :step=0.01
-              label />
+              :inner-min=0.1 label />
           </q-item-section>
           <q-item-section side>
             <q-input type="number" dense hide-bottom-space style="width:5em" :model-value="q"
@@ -90,7 +91,7 @@ export default {
   data() {
     return {
       // bandpass_skirt is not supported by the web audio api, so we cant generate a graph for it.
-      filter_types: ['lowpass', 'highpass', /*'bandpass_skirt', 'bandpass_peak'*/ 'bandpass', 'notch', 'allpass', 'peaking', 'lowshelf', 'highshelf'],
+      filter_types: ['lowpass', 'highpass', /*'bandpass_skirt', 'bandpass_peak'*/ 'bandpass', 'notch', 'allpass', 'peaking', 'lowshelf', 'highshelf']
     }
   },
   props: {

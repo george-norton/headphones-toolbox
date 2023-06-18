@@ -2,6 +2,7 @@
 import { ref } from 'vue'
 import { open } from '@tauri-apps/api/shell';
 import { getTauriVersion, getVersion } from '@tauri-apps/api/app';
+import { arch, version, platform } from '@tauri-apps/api/os';
 
 export default {
     setup() {
@@ -24,11 +25,17 @@ export default {
     mounted() {
         getVersion().then((version) => this.version = version)
         getTauriVersion().then((tauriVersion) => this.tauriVersion = tauriVersion)
+        arch().then((arch) => this.archName = arch)
+        platform().then((platform) => this.platformName = platform)
+        version().then((version) => this.osVersion = version)
     },
     data() {
         return {
-            version: ref("Unknown"),
-            tauriVersion: ref("Unknown")
+            version: "Unknown",
+            tauriVersion: "Unknown",
+            archName: "Unknown",
+            platformName: "Unknown",
+            osVersion: "Unknown"
         }
     }
 }
@@ -48,8 +55,11 @@ export default {
             <q-card-section class="col items-center no-wrap q-py-sm">
                 <div class="bold-heading">Build info</div>
                 <div class="col q-gutter-none justify-start q-pl-lg">
-                    <div>Version: {{ version }}</div>
+                    <div>Application Version: {{ version }}</div>
                     <div>Tauri Version: {{ tauriVersion }}</div>
+                    <div>Platform: {{ platformName }}</div>
+                    <div>OS Version: {{ osVersion }}</div>
+                    <div>Architecture: {{ archName }}</div>
                 </div>
             </q-card-section>
             <q-card-section class="col items-center no-wrap q-pt-sm  q-pb-lg">

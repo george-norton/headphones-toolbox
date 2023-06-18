@@ -198,7 +198,7 @@ export default {
         }
       }
     },
-    sendState() {
+    sendState: debounce(function () {
       if (this.connected && this.tab !== undefined && this.tabs[this.tab] !== undefined) {
         var sendConfig = {
           "preprocessing": { "preamp": this.tabs[this.tab].preprocessing.preamp, "reverse_stereo": this.tabs[this.tab].preprocessing.reverse_stereo },
@@ -208,7 +208,7 @@ export default {
         invoke('write_config', { config: JSON.stringify(sendConfig) }).then((message) => {
         })
       }
-    },
+    }, 5),
     saveState: debounce(function () {
       var config = {
         "currentConfiguration": this.tab,
@@ -228,7 +228,7 @@ export default {
       } catch (e) {
         console.log(e);
       }
-    }, 1000),
+    }, 100),
     loadState() {
       readTextFile(
         "configuration.json",
