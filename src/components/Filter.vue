@@ -32,8 +32,7 @@
             <!-- Use a logarithmic scale here as this is how the graph is plotted. It makes picking low frequencies easier. -->
             <q-slider :model-value="Math.log(f0) / Math.log(20000)"
               @update:model-value="(value) => $emit('update:f0', Math.pow(20000, value))" label
-              :label-value="Math.round(f0 * 100) / 100 + 'hz'" :min=0 :max=1 :step=0.001
-              track-color="blue-grey-6" inner-track-color="grey-4" selection-color="primary">
+              :label-value="Math.round(f0 * 100) / 100 + 'hz'" :min=0 :max=1 :step=0.001>
             </q-slider>
           </q-item-section>
           <q-item-section side>

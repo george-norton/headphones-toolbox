@@ -21,7 +21,7 @@ import { resolveResource } from '@tauri-apps/api/path'
 import { getVersion } from '@tauri-apps/api/app';
 import debounce from 'lodash.debounce'
 
-var idSequence = 0
+const API_VERSION = 1;
 var deviceNames = { "none": "No device detected" }
 var deviceListKey = ref(0)
 var popup = ref(undefined)
@@ -49,9 +49,16 @@ export default {
       if (this.connected) {
         this.sendState()
         invoke("read_version_info").then((version) => {
-          this.versions = {...JSON.parse(version), ...{"serial_number": this.device}}
-
-          this.validated = true
+          this.versions = {...JSON.parse(version), ...{"serial_number": this.device, "client_api_version": API_VERSION}}
+          if (version.minimum_supported_version > API_VERSION) {
+            this.$q.notify({ type: 'negative', message: "Fimrware is too new, this version of Ploopy Headphones Toolkit is not supported." })
+          }
+          else if (API_VERSION > version.current_version) {
+            this.$q.notify({ type: 'negative', message: "Firmware is too old, this version of Ploopy Headphones Toolkit is not supported." })
+          }
+          else {
+            this.validated = true
+          }
         })
       }
     },
@@ -139,7 +146,7 @@ export default {
         var config = JSON.parse(deviceConfig)
         config.id = this.tab
         config.name = this.tabs[this.tab].name
-        config.state = this.tabs[this.tab].state
+        config.state = structuredClone(toRaw(this.tabs[this.tab].state))
         this.tabs[this.tab] = config
       })
     },
@@ -149,7 +156,7 @@ export default {
           var config = JSON.parse(defaultConfiguration)
           config.id = this.tab
           config.name = this.tabs[this.tab].name
-          config.state = this.tabs[this.tab].state
+          config.state = structuredClone(toRaw(this.tabs[this.tab].state))
           this.tabs[this.tab] = config
         }))
     },
@@ -199,7 +206,7 @@ export default {
       }
     },
     sendState: debounce(function () {
-      if (this.connected && this.tab !== undefined && this.tabs[this.tab] !== undefined) {
+      if (this.validated && this.tab !== undefined && this.tabs[this.tab] !== undefined) {
         var sendConfig = {
           "preprocessing": { "preamp": this.tabs[this.tab].preprocessing.preamp, "reverse_stereo": this.tabs[this.tab].preprocessing.reverse_stereo },
           "filters": this.tabs[this.tab].filters,
@@ -338,7 +345,7 @@ export default {
           </template>
         </q-select>
 
-        <InfoMenuVue :disable="!validated" v-bind:versions="versions"/>
+        <InfoMenuVue :disable="!connected" v-bind:versions="versions"/>
         <q-btn flat dense icon="edit" :disable="!connected">
           <q-tooltip>
             Rename this device.
@@ -349,7 +356,7 @@ export default {
           </q-popup-edit>
         </q-btn>
         <q-space />
-        <q-btn flat dense icon="save_alt" :disable="!connected" @click="invoke('save_config')">
+        <q-btn flat dense icon="save_alt" :disable="!validated" @click="invoke('save_config')">
           <q-tooltip>
             Persist the current configuration to flash memory on the DAC.
           </q-tooltip>
@@ -360,7 +367,7 @@ export default {
               <q-item clickable v-close-popup :disable="!connected" @click="invoke('reboot_bootloader')">
                 <q-item-section>Reboot into bootloader</q-item-section>
               </q-item>
-              <q-item clickable v-close-popup :disable="!connected" @click="invoke('factory_reset')">
+              <q-item clickable v-close-popup :disable="!validated" @click="invoke('factory_reset')">
                 <q-item-section>Erase saved configuration</q-item-section>
               </q-item>
               <q-separator />
@@ -414,7 +421,7 @@ export default {
                 <q-item clickable v-close-popup @click="importConfiguration()">
                   <q-item-section>Import from JSON</q-item-section>
                 </q-item>
-                <q-item clickable v-close-popup :disable="!connected" @click="readDeviceConfiguration()">
+                <q-item clickable v-close-popup :disable="!validated" @click="readDeviceConfiguration()">
                   <q-item-section>Read config from device</q-item-section>
                 </q-item>
                 <q-item clickable v-close-popup @click="readDefaultConfiguration()">
