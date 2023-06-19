@@ -16,6 +16,9 @@ use std::io::Seek;
 use std::default::Default;
 use std::str;
 use std::io::BufRead;
+// Window shadow support
+use tauri::Manager;
+use window_shadows::set_shadow;
 
 pub const LIBUSB_RECIPIENT_DEVICE: u8 = 0x00;
 pub const LIBUSB_REQUEST_TYPE_VENDOR: u8 = 0x02 << 5;
@@ -171,11 +174,14 @@ fn send_cmd(connection_state: State<'_, Mutex<ConnectionState>>, buf: &[u8]) -> 
         Some(device) => {
             match &device.configuration_interface {
                 Some(interface) => {
-                    let timeout = Duration::from_secs(1);
+                    let timeout = Duration::from_millis(100);
                     //println!("Write {} bytes to {}", buf.len(), interface.output);
                     match device.device_handle.write_bulk(interface.output, &buf, timeout) {
                         Ok(len) => (),
-                        Err(err) => println!("Error {}", err)
+                        Err(err) => {
+                            println!("Error {}", err);
+                            return Err("Failed to write to the configuration interface");
+                        }
                     }
 
                     let mut result = [0; 256];
@@ -546,7 +552,11 @@ fn poll_devices(connection_state: State<Mutex<ConnectionState>>) -> String {
 }
 
 fn main() {
-    tauri::Builder::default()
+    tauri::Builder::default().setup(|app| {
+            let window = app.get_window("main").unwrap();
+            set_shadow(&window, true).expect("Unsupported platform!");
+            Ok(())
+        })
         .manage(Mutex::new(ConnectionState::new()))
         .invoke_handler(tauri::generate_handler![reboot_bootloader, poll_devices, open, write_config, save_config, factory_reset, load_config, read_version_info])
         .run(tauri::generate_context!())
