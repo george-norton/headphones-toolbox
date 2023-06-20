@@ -14,8 +14,8 @@ This is an Alpha test version of Ploopy Headphones Toolbox, it is pretty functio
 
 ## Quickstart guide
 
-Grab a firmware image from [here](https://github.com/george-norton/headphones/releases/tag/headphones-toolbox-alpha-v2) and flash it onto your DAC.
-Grab a build of Ploopy Headphones Toolbox from [here](https://github.com/george-norton/headphones-toolbox/releases/tag/headphones-toolbox-alpha-v4) and install it on your PC.
+Grab a firmware image from [here](https://github.com/george-norton/headphones/releases/tag/headphones-toolbox-alpha-v3) and flash it onto your DAC.
+Grab a build of Ploopy Headphones Toolbox from [here](https://github.com/george-norton/headphones-toolbox/releases/tag/headphones-toolbox-alpha-v5) and install it on your PC.
 
 If you are a Linux user you will need to set a udev rule to allow users to access the USB device. As root, run:
 ```
@@ -32,12 +32,10 @@ You can export your faviourite configurations to JSON files and share them with 
 
 ## Current development status
 
-The application is currently in Alpha status. It is not feature complete, but it does implement quite a bit of useful stuff.
+The application is currently in Alpha status. But I have now implemented the majority of the functionality I planned for the first release, so we are close to a first beta release.
 
 Missing functionality:
 - Not many errors are reported to the user.
-- Does not report device information to the user (version numbers etc..)
-- Does not validate the firmware version (should reject devices with newer than expected firmware)
 
 Implemented functionality:
 - Device discovery.
@@ -49,6 +47,8 @@ Implemented functionality:
 - Import/Export configs for sharing.
 - Read the configuration back from the device.
 - Configure the PCM3060 filters.
+- Reports device information to the user (version numbers etc..)
+- Validates the firmware version is supported.
 
 Known issues:
 - There is a burst of audio noise when when writing a config to flash, this seems to be due to the time it takes to write to flash. I turn the DAC off then back on to mask it, the slight pop sounds much better.
