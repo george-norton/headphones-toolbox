@@ -554,6 +554,7 @@ fn poll_devices(connection_state: State<Mutex<ConnectionState>>) -> String {
 fn main() {
     tauri::Builder::default().setup(|app| {
             let window = app.get_window("main").unwrap();
+            #[cfg(any(windows, target_os = "macos"))]
             set_shadow(&window, true).expect("Unsupported platform!");
             Ok(())
         })
