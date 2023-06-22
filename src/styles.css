@@ -154,6 +154,12 @@ button {
   font-size:  smaller
 }
 
+.truncate-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 @media (prefers-color-scheme: dark) {
   :root {
     color: #f6f6f6;

@@ -13,7 +13,8 @@ export default {
     },
     methods: {
         addFilter() {
-            this.filters.push({ filter_type: "peaking", q: 0.707106781, f0: 150, db_gain: 0, enabled: true })
+            this.filters.push({ filter_type: "peaking", q: 0.707106781, f0: 150, db_gain: 0, 
+                                a0: 0.5, a1: 0.5, a2: 0.5, b0: 0.5, b1: 0.5, b2: 0.5, enabled: true })
         },
         deleteFilter(filter) {
             for (var i = 0; i < this.filters.length; i++) {
@@ -47,7 +48,10 @@ export default {
                 <q-list class="col-12">
                     <q-item style="padding-left:0px; padding-right:0px" v-for="filter in filters">
                         <FilterVue v-model:filter_type="filter.filter_type" v-model:f0="filter.f0"
-                            v-model:db_gain="filter.db_gain" v-model:q="filter.q" v-model:enabled="filter.enabled"
+                            v-model:db_gain="filter.db_gain" v-model:q="filter.q" 
+                            v-model:a0="filter.a0" v-model:a1="filter.a1" v-model:a2="filter.a2"
+                            v-model:b0="filter.b0" v-model:b1="filter.b1" v-model:b2="filter.b2"
+                            v-model:enabled="filter.enabled"
                             @delete:filter="deleteFilter(filter)" ref="filter" />
                     </q-item>
                 </q-list>

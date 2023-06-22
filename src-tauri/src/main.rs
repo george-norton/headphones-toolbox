@@ -127,7 +127,8 @@ enum FilterType {
     Allpass,
     Peaking,
     LowShelf,
-    HighShelf
+    HighShelf,
+    CustomIIR
 }
 
 #[derive(Serialize, Deserialize, Default)]
@@ -136,6 +137,12 @@ struct Filter {
     q: f64,
     f0: f64,
     db_gain: f64,
+    a0: f64,
+    a1: f64,
+    a2: f64,
+    b0: f64,
+    b1: f64,
+    b2: f64,
     enabled: bool
 }
 
@@ -245,15 +252,28 @@ fn write_config(config: &str, connection_state: State<'_, Mutex<ConnectionState>
                         "peaking" => { filter_type_val = 6; filter_args = 3; },
                         "lowshelf" => { filter_type_val = 7; filter_args = 3; },
                         "highshelf" => { filter_type_val = 8; filter_args = 3; },
+                        "custom_iir" => { filter_type_val = 9; filter_args = 6; },
                         _ => return Ok(false)
                     }
                     filter_payload.push(filter_type_val);
                     filter_payload.extend_from_slice(&[0u8; 3]);
-                    filter_payload.extend_from_slice(&filter.f0.to_le_bytes());
-                    if filter_args == 3 {
-                        filter_payload.extend_from_slice(&filter.db_gain.to_le_bytes());
+                    if filter_type_val == FilterType::CustomIIR as u8
+                    {
+                        filter_payload.extend_from_slice(&filter.a0.to_le_bytes());
+                        filter_payload.extend_from_slice(&filter.a1.to_le_bytes());
+                        filter_payload.extend_from_slice(&filter.a2.to_le_bytes());
+                        filter_payload.extend_from_slice(&filter.b0.to_le_bytes());
+                        filter_payload.extend_from_slice(&filter.b1.to_le_bytes());
+                        filter_payload.extend_from_slice(&filter.b2.to_le_bytes());
                     }
-                    filter_payload.extend_from_slice(&filter.q.to_le_bytes());
+                    else
+                    {
+                        filter_payload.extend_from_slice(&filter.f0.to_le_bytes());
+                        if filter_args == 3 {
+                            filter_payload.extend_from_slice(&filter.db_gain.to_le_bytes());
+                        }
+                        filter_payload.extend_from_slice(&filter.q.to_le_bytes());
+                    }
                 }
             }
             preprocessing_payload.extend_from_slice(&(cfg.preprocessing.preamp/100.0).to_le_bytes());
@@ -326,33 +346,44 @@ fn load_config(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<St
                     },
                     x if x == StructureTypes::FilterConfiguration as u16 => {
                         let end = cur.position() + (length_val-4) as u64;
-                        while (cur.position() < end) {
+                        while cur.position() < end {
                             let filter_type = cur.read_u8().unwrap();
-                            let filter_type_str;
                             cur.seek(SeekFrom::Current(3)); // reserved bytes
                             let filter_args;
 
+                            let mut filter : Filter = Default::default();
+                            filter.enabled = true;
                             match filter_type {
-                                x if x == FilterType::Lowpass as u8 => { filter_type_str = "lowpass"; filter_args = 2; },
-                                x if x == FilterType::Highpass as u8 => { filter_type_str = "highpass"; filter_args = 2; },
-                                x if x == FilterType::BandpassSkirt as u8 => { filter_type_str = "bandpass_skirt"; filter_args = 2; },
-                                x if x == FilterType::BandpassPeak as u8 => { filter_type_str = "bandpass_peak"; filter_args = 2; },
-                                x if x == FilterType::Notch as u8 => { filter_type_str = "notch"; filter_args = 2; },
-                                x if x == FilterType::Allpass as u8 => { filter_type_str = "allpass"; filter_args = 2; },
-                                x if x == FilterType::Peaking as u8 => { filter_type_str = "peaking"; filter_args = 3; },
-                                x if x == FilterType::LowShelf as u8 => { filter_type_str = "lowshelf"; filter_args = 3; },
-                                x if x == FilterType::HighShelf as u8 => { filter_type_str = "highshelf"; filter_args = 3; },
+                                x if x == FilterType::Lowpass as u8 => { filter.filter_type = "lowpass".to_string(); filter_args = 2; },
+                                x if x == FilterType::Highpass as u8 => { filter.filter_type = "highpass".to_string(); filter_args = 2; },
+                                x if x == FilterType::BandpassSkirt as u8 => { filter.filter_type = "bandpass_skirt".to_string(); filter_args = 2; },
+                                x if x == FilterType::BandpassPeak as u8 => { filter.filter_type = "bandpass_peak".to_string(); filter_args = 2; },
+                                x if x == FilterType::Notch as u8 => { filter.filter_type = "notch".to_string(); filter_args = 2; },
+                                x if x == FilterType::Allpass as u8 => { filter.filter_type = "allpass".to_string(); filter_args = 2; },
+                                x if x == FilterType::Peaking as u8 => { filter.filter_type = "peaking".to_string(); filter_args = 3; },
+                                x if x == FilterType::LowShelf as u8 => { filter.filter_type = "lowshelf".to_string(); filter_args = 3; },
+                                x if x == FilterType::HighShelf as u8 => { filter.filter_type = "highshelf".to_string(); filter_args = 3; },
+                                x if x == FilterType::CustomIIR as u8 => { filter.filter_type = "custom_iir".to_string(); filter_args = 6; },
                                 _ => return { println!("Unknown filter type {}", filter_type); Err(()) }
                             }
-                            let f0 = cur.read_f64::<LittleEndian>().unwrap();
-                            let db_gain;
-                            if filter_args == 3 {
-                                db_gain = cur.read_f64::<LittleEndian>().unwrap();
-                            } else {
-                                db_gain = 0.0;
+
+                            if filter_type == FilterType::CustomIIR as u8 {
+                                filter.a0 = cur.read_f64::<LittleEndian>().unwrap();
+                                filter.a1 = cur.read_f64::<LittleEndian>().unwrap();
+                                filter.a2 = cur.read_f64::<LittleEndian>().unwrap();
+                                filter.b0 = cur.read_f64::<LittleEndian>().unwrap();
+                                filter.b1 = cur.read_f64::<LittleEndian>().unwrap();
+                                filter.b2 = cur.read_f64::<LittleEndian>().unwrap();
                             }
-                            let q = cur.read_f64::<LittleEndian>().unwrap();
-                            cfg.filters.push(Filter { filter_type: filter_type_str.to_string(), f0, db_gain, q, enabled: true })
+                            else {
+                                filter.f0 = cur.read_f64::<LittleEndian>().unwrap();
+                                filter.db_gain;
+                                if filter_args == 3 {
+                                    filter.db_gain = cur.read_f64::<LittleEndian>().unwrap();
+                                }
+                                filter.q = cur.read_f64::<LittleEndian>().unwrap();
+                            }
+                            cfg.filters.push(filter)
                         }
 
                         if cur.position() != end {

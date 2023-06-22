@@ -49,7 +49,7 @@ export default {
       if (this.connected) {
         this.sendState()
         invoke("read_version_info").then((version) => {
-          this.versions = {...JSON.parse(version), ...{"serial_number": this.device, "client_api_version": API_VERSION}}
+          this.versions = { ...JSON.parse(version), ...{ "serial_number": this.device, "client_api_version": API_VERSION } }
           if (version.minimum_supported_version > API_VERSION) {
             this.$q.notify({ type: 'negative', message: "Fimrware is too new, this version of Ploopy Headphones Toolkit is not supported." })
           }
@@ -132,6 +132,11 @@ export default {
         config.codec.rolloff = config.codec.rolloff != 0
         config.codec.de_emphasis = config.codec.de_emphasis != 0
       }
+      for (var i in config.filters) {
+        if (!("a0" in config.filters[i])) {
+          config.filters[i] = { ...config.filters[i], ...{ a0: 0, a1: 0, a2: 0, b0: 0, b1: 0, b2: 0 } }
+        }
+      }
       if ("reverseStereo" in config.preprocessing) {
         config.preprocessing.reverse_stereo = config.preprocessing.reverseStereo
         delete config.preprocessing.reverseStereo
@@ -192,16 +197,16 @@ export default {
       })
     },
     deleteConfiguration() {
+      var id = 0;
       for (var i = 0; i < this.tabs.length; i++) {
-        this.tabs[i].id = i
         if (this.tabs[i].id == this.tab) {
           this.tabs.splice(i, 1)
-          if (i > 0) {
-            this.tab = this.tabs[i - 1].id
-          }
-          else if (i < this.tabs.length) {
-            this.tab = this.tabs[i].id
-          }
+          this.tab = id
+          i--
+        }
+        else {
+          this.tabs[i].id = id
+          id++
         }
       }
     },
@@ -212,114 +217,125 @@ export default {
           "filters": this.tabs[this.tab].filters,
           "codec": this.tabs[this.tab].codec
         }
+        console.log(this.versions)
+        if (! ("current_version" in this.versions) || this.versions.current_version < 2) {
+          console.log(sendConfig)
+          for (var f in sendConfig.filters) {
+            console.log(f)
+            if (sendConfig.filters[f].filter_type == "custom_iir" && sendConfig.filters[f].enabled) {
+              this.$q.notify({ type: 'negative', message: "IIR filters are not supported by this firmware version." })
+              break
+            }
+          }
+        }
         invoke('write_config', { config: JSON.stringify(sendConfig) }).then((message) => {
         })
       }
     }, 5),
-    saveState: debounce(function () {
-      var config = {
-        "currentConfiguration": this.tab,
-        "configurations": this.tabs,
-        "deviceNames": deviceNames,
-        "version": this.version
-      }
-      try {
-        createDir("", { dir: BaseDirectory.AppData, recursive: true }).then(
-          writeTextFile(
-            {
-              contents: JSON.stringify(config, null, 4),
-              path: "configuration.json"
-            },
-            { dir: BaseDirectory.AppData }
-          ))
-      } catch (e) {
-        console.log(e);
-      }
-    }, 100),
-    loadState() {
-      readTextFile(
-        "configuration.json",
+saveState: debounce(function () {
+  var config = {
+    "currentConfiguration": this.tab,
+    "configurations": this.tabs,
+    "deviceNames": deviceNames,
+    "version": this.version
+  }
+  try {
+    createDir("", { dir: BaseDirectory.AppData, recursive: true }).then(
+      writeTextFile(
+        {
+          contents: JSON.stringify(config, null, 4),
+          path: "configuration.json"
+        },
         { dir: BaseDirectory.AppData }
-      ).then((response) => {
-        var config = JSON.parse(response)
-        if (config) {
-          for (var c in config.configurations) {
-            this.migrateConfig(config.configurations[c])
-            if (config.configurations[c].id == config.currentConfiguration) {
-              this.tab = c
-            }
-            config.configurations[c].id = c
-          }
-          this.tabs = reactive(config.configurations)
-          deviceNames = config.deviceNames
+      ))
+  } catch (e) {
+    console.log(e);
+  }
+}, 100),
+  loadState() {
+  readTextFile(
+    "configuration.json",
+    { dir: BaseDirectory.AppData }
+  ).then((response) => {
+    var config = JSON.parse(response)
+    if (config) {
+      for (var c in config.configurations) {
+        this.migrateConfig(config.configurations[c])
+        if (config.configurations[c].id == config.currentConfiguration) {
+          this.tab = c
         }
-      })
-        .catch((error) => {
-          console.error(error);
-        });
-    },
+        config.configurations[c].id = c
+      }
+      this.tabs = reactive(config.configurations)
+      deviceNames = config.deviceNames
+    }
+  })
+    .catch((error) => {
+      console.error(error);
+    });
+},
     async exportConfiguration() {
-      const exportData = this.tabs[this.tab]
-      exportData.version = this.version
-      delete exportData.state
-      const config = JSON.stringify(exportData, null, 4)
-      exportFile(this.tabs[this.tab].name + ".json", config)
-    },
-    importConfiguration() {
-      this.$refs.importFile.pickFiles()
-    },
-    updateDeviceName(name) {
-      deviceNames[this.device] = name
-      deviceListKey.value += 1
-      this.saveState()
-    },
-    openDevice() {
-      invoke('open', { serialNumber: this.device }).then((result) => {
-        if (result) {
-          this.$q.notify({ type: 'positive', message: "Device connected" })
-          this.connected = true
-        }
-      })
-    },
-    pollDevices() {
-      invoke('poll_devices').then((message) => {
-        var devices = JSON.parse(message)
-        for (var d in devices) {
-          if (!(devices[d] in deviceNames)) {
-            if (devices.length == 1 && !("Ploopy Headphones" in deviceNames)) {
-              // Most people will only have one device, so use a friendly name
-              deviceNames[devices[d]] = "Ploopy Headphones"
-            }
-            else {
-              deviceNames[devices[d]] = "Headphones [" + devices[d] + "]"
-            }
-          }
-        }
-        Object.assign(this.devices, devices)
-
-        if ((this.device == undefined || this.device == "none") && this.devices.length > 0) {
-          this.device = this.devices[0];
+  const exportData = structuredClone(toRaw(this.tabs[this.tab]))
+  exportData.version = this.version
+  delete exportData.state
+  const config = JSON.stringify(exportData, null, 4)
+  exportFile(this.tabs[this.tab].name + ".json", config)
+},
+importConfiguration() {
+  this.$refs.importFile.pickFiles()
+},
+updateDeviceName(name) {
+  deviceNames[this.device] = name
+  deviceListKey.value += 1
+  this.saveState()
+},
+openDevice() {
+  invoke('open', { serialNumber: this.device }).then((result) => {
+    if (result) {
+      this.$q.notify({ type: 'positive', message: "Device connected" })
+      this.connected = true
+    }
+  })
+},
+pollDevices() {
+  invoke('poll_devices').then((message) => {
+    var devices = JSON.parse(message)
+    for (var d in devices) {
+      if (!(devices[d] in deviceNames)) {
+        if (devices.length == 1 && !("Ploopy Headphones" in deviceNames)) {
+          // Most people will only have one device, so use a friendly name
+          deviceNames[devices[d]] = "Ploopy Headphones"
         }
         else {
-          if (this.device == undefined && this.devices.length == 0) {
-            this.$q.notify({ type: 'negative', message: "No devices detected" })
-            this.device = "none"
-            this.connected = false
-          }
-          else if (this.device != "none") {
-            if (this.connected && (devices.indexOf(this.device) == -1)) {
-              this.$q.notify({ type: 'negative', message: "Device disconnected" })
-              this.connected = false
-            }
-            else if (!this.connected) {
-              if (devices.indexOf(this.device) != -1) {
-                this.openDevice()
-              }
-            }
+          deviceNames[devices[d]] = "Headphones [" + devices[d] + "]"
+        }
+      }
+    }
+    Object.assign(this.devices, devices)
+
+    if ((this.device == undefined || this.device == "none") && this.devices.length > 0) {
+      this.device = this.devices[0];
+    }
+    else {
+      if (this.device == undefined && this.devices.length == 0) {
+        this.$q.notify({ type: 'negative', message: "No devices detected" })
+        this.device = "none"
+        this.connected = false
+      }
+      else if (this.device != "none") {
+        if (this.connected && (devices.indexOf(this.device) == -1)) {
+          this.$q.notify({ type: 'negative', message: "Device disconnected" })
+          this.connected = false
+        }
+        else if (!this.connected) {
+          if (devices.indexOf(this.device) != -1) {
+            this.openDevice()
           }
         }
-      })
+      }
     }
+  })
+}
   }
 }
 </script>
@@ -345,7 +361,7 @@ export default {
           </template>
         </q-select>
 
-        <InfoMenuVue :disable="!connected" v-bind:versions="versions"/>
+        <InfoMenuVue :disable="!connected" v-bind:versions="versions" />
         <q-btn flat dense icon="edit" :disable="!connected">
           <q-tooltip>
             Rename this device.

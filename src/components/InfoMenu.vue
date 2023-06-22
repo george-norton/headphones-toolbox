@@ -1,8 +1,12 @@
 <template>
   <div class="q-pa-none">
     <q-btn dense flat icon="info" :disable="disable">
+      <q-tooltip>
+        Information about this device.
+      </q-tooltip>
       <q-menu>
-        <q-table flat bordered dense :rows-per-page-options="[0]" row_key="key" :rows="rows" :columns="columns" separator="vertical" hide-header hide-bottom :loading="loading">
+        <q-table flat bordered dense :rows-per-page-options="[0]" row_key="key" :rows="rows" :columns="columns"
+          separator="vertical" hide-header hide-bottom :loading="loading">
           <template v-slot:top>
             <div class="bold-heading">Device Info</div>
           </template>
@@ -22,7 +26,7 @@ export default {
   },
   props: {
     disable: ref(Boolean),
-    versions: ref({"git_hash": ""})
+    versions: ref({ "git_hash": "" })
   },
   watch: {
     versions: function (newVal, oldVal) { // watch it

@@ -1,10 +1,10 @@
 <template>
-  <Line :data="chartData" :options="options" class="graph"/>
+  <Line :data="chartData" :options="options" class="graph" />
 </template>
      
 <script>
 import { Line } from 'vue-chartjs'
-import { ref, reactive } from 'vue'
+import { ref, reactive, toRaw } from 'vue'
 import { getCssVar } from 'quasar'
 import debounce from 'lodash.debounce'
 import { useQuasar } from 'quasar'
@@ -30,20 +30,22 @@ ChartJS.register(
   Tooltip,
   Legend
 )
+import { getFilterCoefficients } from '@/components/FilterCoefficients.js'
 
 const audioCtx = new AudioContext()
 const biquadFilter = audioCtx.createBiquadFilter()
 
 const STEPS = 1024;
-const frequency = new Float32Array(STEPS);
-var magnitudeSum = new Float32Array(STEPS);
-var magnitude = new Float32Array(STEPS);
-var phaseResponse = new Float32Array(STEPS);
+const frequency = new Float32Array(STEPS)
+var magnitudeSum = new Float32Array(STEPS)
+var magnitude = []
+var phaseResponse = new Float32Array(STEPS)
+var previousConfig = []
 
 // We plot with a logarithmic scale, so we copmpensate here to
 // get a uniform resolution at either end of the plot.
 for (var i = 0; i < STEPS; i++) {
-  frequency[i] = Math.pow(20000, i/STEPS);
+  frequency[i] = Math.pow(20000, i / STEPS);
 }
 
 function getTextColor() {
@@ -63,15 +65,27 @@ export default {
         magnitudeSum.fill(0);
         const config = this.filters.filters;
         for (var i in config) {
-          if (config[i].enabled) {
-            biquadFilter.type = config[i].filter_type;
-            biquadFilter.frequency.value = config[i].f0
-            biquadFilter.gain.value = config[i].db_gain
-            biquadFilter.Q.value = config[i].q
-            biquadFilter.getFrequencyResponse(frequency, magnitude, phaseResponse)
-            for (var j = 0; j < STEPS; j += 1) {
-              magnitudeSum[j] += magnitude[j]
+          if (magnitude.length <= i) {
+            magnitude.push(new Float32Array(STEPS))
+            previousConfig.push(undefined)
+          }
+          var cfg = JSON.stringify(config[i])
+          if (previousConfig[i] !== cfg && config[i].enabled) {
+            if (config[i].filter_type == "custom_iir") {
+              if (config[i].a0 != 0) {
+                const iirFilter = new IIRFilterNode(audioCtx, { feedforward: [config[i].b0, config[i].b1, config[i].b2], feedback: [config[i].a0, config[i].a1, config[i].a2] })
+                iirFilter.getFrequencyResponse(frequency, magnitude[i], phaseResponse)
+              }
             }
+            else {
+              const iirFilter = new IIRFilterNode(audioCtx, getFilterCoefficients(config[i].filter_type, config[i].f0, config[i].db_gain, config[i].q))
+              iirFilter.getFrequencyResponse(frequency, magnitude[i], phaseResponse)
+            }
+
+            previousConfig[i] = cfg
+          }
+          for (var j = 0; j < STEPS; j += 1) {
+            magnitudeSum[j] += magnitude[i][j]
           }
         }
         this.chartData = {
