@@ -1,8 +1,8 @@
 [package]
-name = "tauri-app"
-version = "0.0.0"
-description = "A Tauri App"
-authors = ["you"]
+name = "headphones-toolbox"
+version = "0.0.1"
+description = "An application configure Ploopy Headphones."
+authors = ["George Norton"]
 license = ""
 repository = ""
 edition = "2021"

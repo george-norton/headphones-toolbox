@@ -11,6 +11,8 @@ import { useQuasar } from 'quasar'
 
 const $q = useQuasar()
 $q.dark.set("auto")
+const about = ref(null)
+const importFile = ref(null)
 </script>
 
 <script>
@@ -201,7 +203,7 @@ export default {
       for (var i = 0; i < this.tabs.length; i++) {
         if (this.tabs[i].id == this.tab) {
           this.tabs.splice(i, 1)
-          this.tab = id
+          this.tab = Math.min(id, this.tabs.length - 1)
           i--
         }
         else {
@@ -218,7 +220,7 @@ export default {
           "codec": this.tabs[this.tab].codec
         }
         console.log(this.versions)
-        if (! ("current_version" in this.versions) || this.versions.current_version < 2) {
+        if (!("current_version" in this.versions) || this.versions.current_version < 2) {
           console.log(sendConfig)
           for (var f in sendConfig.filters) {
             console.log(f)
@@ -232,110 +234,110 @@ export default {
         })
       }
     }, 5),
-saveState: debounce(function () {
-  var config = {
-    "currentConfiguration": this.tab,
-    "configurations": this.tabs,
-    "deviceNames": deviceNames,
-    "version": this.version
-  }
-  try {
-    createDir("", { dir: BaseDirectory.AppData, recursive: true }).then(
-      writeTextFile(
-        {
-          contents: JSON.stringify(config, null, 4),
-          path: "configuration.json"
-        },
+    saveState: debounce(function () {
+      var config = {
+        "currentConfiguration": this.tab,
+        "configurations": this.tabs,
+        "deviceNames": deviceNames,
+        "version": this.version
+      }
+      try {
+        createDir("", { dir: BaseDirectory.AppData, recursive: true }).then(
+          writeTextFile(
+            {
+              contents: JSON.stringify(config, null, 4),
+              path: "configuration.json"
+            },
+            { dir: BaseDirectory.AppData }
+          ))
+      } catch (e) {
+        console.log(e);
+      }
+    }, 100),
+    loadState() {
+      readTextFile(
+        "configuration.json",
         { dir: BaseDirectory.AppData }
-      ))
-  } catch (e) {
-    console.log(e);
-  }
-}, 100),
-  loadState() {
-  readTextFile(
-    "configuration.json",
-    { dir: BaseDirectory.AppData }
-  ).then((response) => {
-    var config = JSON.parse(response)
-    if (config) {
-      for (var c in config.configurations) {
-        this.migrateConfig(config.configurations[c])
-        if (config.configurations[c].id == config.currentConfiguration) {
-          this.tab = c
+      ).then((response) => {
+        var config = JSON.parse(response)
+        if (config) {
+          for (var c in config.configurations) {
+            this.migrateConfig(config.configurations[c])
+            if (config.configurations[c].id == config.currentConfiguration) {
+              this.tab = c
+            }
+            config.configurations[c].id = c
+          }
+          this.tabs = reactive(config.configurations)
+          deviceNames = config.deviceNames
         }
-        config.configurations[c].id = c
-      }
-      this.tabs = reactive(config.configurations)
-      deviceNames = config.deviceNames
-    }
-  })
-    .catch((error) => {
-      console.error(error);
-    });
-},
+      })
+        .catch((error) => {
+          console.error(error);
+        });
+    },
     async exportConfiguration() {
-  const exportData = structuredClone(toRaw(this.tabs[this.tab]))
-  exportData.version = this.version
-  delete exportData.state
-  const config = JSON.stringify(exportData, null, 4)
-  exportFile(this.tabs[this.tab].name + ".json", config)
-},
-importConfiguration() {
-  this.$refs.importFile.pickFiles()
-},
-updateDeviceName(name) {
-  deviceNames[this.device] = name
-  deviceListKey.value += 1
-  this.saveState()
-},
-openDevice() {
-  invoke('open', { serialNumber: this.device }).then((result) => {
-    if (result) {
-      this.$q.notify({ type: 'positive', message: "Device connected" })
-      this.connected = true
-    }
-  })
-},
-pollDevices() {
-  invoke('poll_devices').then((message) => {
-    var devices = JSON.parse(message)
-    for (var d in devices) {
-      if (!(devices[d] in deviceNames)) {
-        if (devices.length == 1 && !("Ploopy Headphones" in deviceNames)) {
-          // Most people will only have one device, so use a friendly name
-          deviceNames[devices[d]] = "Ploopy Headphones"
+      const exportData = structuredClone(toRaw(this.tabs[this.tab]))
+      exportData.version = this.version
+      delete exportData.state
+      const config = JSON.stringify(exportData, null, 4)
+      exportFile(this.tabs[this.tab].name + ".json", config)
+    },
+    importConfiguration(){
+      importFile.pickFiles()
+    },
+    updateDeviceName(name) {
+      deviceNames[this.device] = name
+      deviceListKey.value += 1
+      this.saveState()
+    },
+    openDevice() {
+      invoke('open', { serialNumber: this.device }).then((result) => {
+        if (result) {
+          this.$q.notify({ type: 'positive', message: "Device connected" })
+          this.connected = true
         }
-        else {
-          deviceNames[devices[d]] = "Headphones [" + devices[d] + "]"
-        }
-      }
-    }
-    Object.assign(this.devices, devices)
-
-    if ((this.device == undefined || this.device == "none") && this.devices.length > 0) {
-      this.device = this.devices[0];
-    }
-    else {
-      if (this.device == undefined && this.devices.length == 0) {
-        this.$q.notify({ type: 'negative', message: "No devices detected" })
-        this.device = "none"
-        this.connected = false
-      }
-      else if (this.device != "none") {
-        if (this.connected && (devices.indexOf(this.device) == -1)) {
-          this.$q.notify({ type: 'negative', message: "Device disconnected" })
-          this.connected = false
-        }
-        else if (!this.connected) {
-          if (devices.indexOf(this.device) != -1) {
-            this.openDevice()
+      })
+    },
+    pollDevices() {
+      invoke('poll_devices').then((message) => {
+        var devices = JSON.parse(message)
+        for (var d in devices) {
+          if (!(devices[d] in deviceNames)) {
+            if (devices.length == 1 && !("Ploopy Headphones" in deviceNames)) {
+              // Most people will only have one device, so use a friendly name
+              deviceNames[devices[d]] = "Ploopy Headphones"
+            }
+            else {
+              deviceNames[devices[d]] = "Headphones [" + devices[d] + "]"
+            }
           }
         }
-      }
+        Object.assign(this.devices, devices)
+
+        if ((this.device == undefined || this.device == "none") && this.devices.length > 0) {
+          this.device = this.devices[0];
+        }
+        else {
+          if (this.device == undefined && this.devices.length == 0) {
+            this.$q.notify({ type: 'negative', message: "No devices detected" })
+            this.device = "none"
+            this.connected = false
+          }
+          else if (this.device != "none") {
+            if (this.connected && (devices.indexOf(this.device) == -1)) {
+              this.$q.notify({ type: 'negative', message: "Device disconnected" })
+              this.connected = false
+            }
+            else if (!this.connected) {
+              if (devices.indexOf(this.device) != -1) {
+                this.openDevice()
+              }
+            }
+          }
+        }
+      })
     }
-  })
-}
   }
 }
 </script>
@@ -387,7 +389,7 @@ pollDevices() {
                 <q-item-section>Erase saved configuration</q-item-section>
               </q-item>
               <q-separator />
-              <q-item clickable v-close-popup @click="this.$refs.about.show()">
+              <q-item clickable v-close-popup @click="about.show()">
                 <q-item-section>About</q-item-section>
               </q-item>
             </q-list>
@@ -396,10 +398,11 @@ pollDevices() {
       </q-toolbar>
 
       <AboutDialogVue ref="about" />
-
+      <q-file ref="importFile" class="hidden" accept=".json" clearable filled v-model="file" />
     </q-header>
 
     <q-page-container>
+      
       <q-page :style-fn="pageHeight" class="scroll overflow-auto">
 
         <q-tabs v-model="tab" dense align="left" :breakpoint="0">
@@ -434,7 +437,7 @@ pollDevices() {
                 <q-item clickable v-close-popup @click="exportConfiguration()">
                   <q-item-section>Export to JSON</q-item-section>
                 </q-item>
-                <q-item clickable v-close-popup @click="importConfiguration()">
+                <q-item clickable v-close-popup @click="importFile.pickFiles()">
                   <q-item-section>Import from JSON</q-item-section>
                 </q-item>
                 <q-item clickable v-close-popup :disable="!validated" @click="readDeviceConfiguration()">
@@ -465,7 +468,6 @@ pollDevices() {
     </q-page-container>
 
     <q-footer elevated>
-
       <div class="block full-width">
         <GraphVue ref="graph" v-model:filters="tabs[tab]" />
       </div>
