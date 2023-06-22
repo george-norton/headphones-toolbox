@@ -81,8 +81,8 @@
 
       <q-list dense bordered class="col" v-else>
         <div class="info-box  q-ma-sm">
-            <q-icon size="sm" name="warning" color="red" />
-            Warning! Do not mess with these coefficients while you are listening to your headphones. It will get loud!
+          <q-icon size="sm" name="warning" color="red" />
+          Warning! Do not mess with these coefficients while you are listening to your headphones. It will get loud!
         </div>
         <div class="row fit justify-start q-pa-sm">
           <div class="col-shrink q-mx-sm">
@@ -91,13 +91,17 @@
             <div class="row justify-start q-gutter-md">
               <q-input label="a0" type="number" dense hide-bottom-space style="width:8em" :step="1.0 / iirDp"
                 :debounce=100 :model-value="a0" @update:model-value="(value) => $emit('update:a0', Number(value))"
-                input-class="truncate-text" :rules="[val => (val != 0) || 'The a0 coefficient must not be zero']" />
+                input-class="truncate-text" :rules="[val => (val != 0) || 'The a0 coefficient must not be zero',
+                val => (val >= -32 && val < 32) || 'Coefficient cannot be represented by the fixed point data type.']"
+                :min=-32 :max=32 />
               <q-input label="a1" type="number" dense hide-bottom-space style="width:8em" :step="1.0 / iirDp"
                 :debounce=100 :model-value="a1" @update:model-value="(value) => $emit('update:a1', Number(value))"
-                input-class="truncate-text" />
+                input-class="truncate-text" :min=-32 :max=32
+                :rules="[val => (val >= -32 && val < 32) || 'Coefficient cannot be represented by the fixed point data type.']" />
               <q-input label="a2" type="number" dense hide-bottom-space style="width:8em" :step="1.0 / iirDp"
                 :debounce=100 :model-value="a2" @update:model-value="(value) => $emit('update:a2', Number(value))"
-                input-class="truncate-text" />
+                input-class="truncate-text" :min=-32 :max=32
+                :rules="[val => (val >= -32 && val < 32) || 'Coefficient cannot be represented by the fixed point data type.']" />
             </div>
           </div>
 
@@ -107,13 +111,16 @@
             <div class="row justify-start q-gutter-md">
               <q-input label="b0" type="number" dense hide-bottom-space style="width:8em" :step="1.0 / iirDp"
                 :debounce=100 :model-value="b0" @update:model-value="(value) => $emit('update:b0', Number(value))"
-                input-class="truncate-text" />
+                input-class="truncate-text" :min=-32 :max=32
+                :rules="[val => (val >= -32 && val < 32) || 'Coefficient cannot be represented by the fixed point data type.']" />
               <q-input label="b1" type="number" dense hide-bottom-space style="width:8em" :step="1.0 / iirDp"
                 :debounce=100 :model-value="b1" @update:model-value="(value) => $emit('update:b1', Number(value))"
-                input-class="truncate-text" />
+                input-class="truncate-text" :min=-32 :max=32
+                :rules="[val => (val >= -32 && val < 32) || 'Coefficient cannot be represented by the fixed point data type.']" />
               <q-input label="b2" type="number" dense hide-bottom-space style="width:8em" :step="1.0 / iirDp"
                 :debounce=100 :model-value="b2" @update:model-value="(value) => $emit('update:b2', Number(value))"
-                input-class="truncate-text" />
+                input-class="truncate-text" :min=-32 :max=32
+                :rules="[val => (val >= -32 && val < 32) || 'Coefficient cannot be represented by the fixed point data type.']" />
             </div>
           </div>
         </div>

@@ -6,16 +6,16 @@ Ploopy Headphones Toolbox is an application for configuring the filtering applie
 ![Screenshot Ploopy Headphones Toolbox.](screenshot-2.png)
 ![Dark mode screenshot Ploopy Headphones Toolbox.](screenshot-3.png)
 
-To use this tool you will need to be running a firmware image build from the [headphones-toolbox branch](https://github.com/george-norton/headphones/tree/headphones-toolbox), prebuilt binaries are available [here](https://github.com/george-norton/headphones/releases/tag/headphones-toolbox-alpha-v1).
+To use this tool you will need to be running a firmware image build from the [headphones-toolbox branch](https://github.com/george-norton/headphones/tree/headphones-toolbox), prebuilt binaries are available [here](https://github.com/george-norton/headphones/releases/tag/headphones-toolbox-beta-v1).
 
-## Alpha Test
+## Beta Test
 
-This is an Alpha test version of Ploopy Headphones Toolbox, it is pretty functional at this point but there are still a few planned bits which are not implemented. Feel free to raise defects, pull requests or leave feedback over on [r/ploopy](https://www.reddit.com/r/ploopy).
+This is an Beta test version of Ploopy Headphones Toolbox, it is pretty functional at this point but there are still a few planned bits which are not implemented. Feel free to raise defects, pull requests or leave feedback over on [r/ploopy](https://www.reddit.com/r/ploopy).
 
 ## Quickstart guide
 
-Grab a firmware image from [here](https://github.com/george-norton/headphones/releases/tag/headphones-toolbox-alpha-v3) and flash it onto your DAC.
-Grab a build of Ploopy Headphones Toolbox from [here](https://github.com/george-norton/headphones-toolbox/releases/tag/headphones-toolbox-alpha-v5) and install it on your PC.
+Grab a firmware image from [here](https://github.com/george-norton/headphones/releases/tag/headphones-toolbox-beta-v1) and flash it onto your DAC.
+Grab a build of Ploopy Headphones Toolbox from [here](https://github.com/george-norton/headphones-toolbox/releases/tag/headphones-toolbox-beta-v1) and install it on your PC.
 
 If you are a Linux user you will need to set a udev rule to allow users to access the USB device. As root, run:
 ```
@@ -32,7 +32,7 @@ You can export your faviourite configurations to JSON files and share them with 
 
 ## Current development status
 
-The application is currently in Alpha status. But I have now implemented the majority of the functionality I planned for the first release, so we are close to a first beta release.
+The application is currently in Beta status. I have now implemented all of the functionality I planned for the first release, it just wants testing.
 
 Missing functionality:
 - Not many errors are reported to the user.
@@ -49,6 +49,7 @@ Implemented functionality:
 - Configure the PCM3060 filters.
 - Reports device information to the user (version numbers etc..)
 - Validates the firmware version is supported.
+- Completely custom Infinite Impulse Response (IIR) filters
 
 Known issues:
 - There is a burst of audio noise when when writing a config to flash, this seems to be due to the time it takes to write to flash. I turn the DAC off then back on to mask it, the slight pop sounds much better.
