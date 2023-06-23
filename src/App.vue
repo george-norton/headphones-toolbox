@@ -13,6 +13,7 @@ const $q = useQuasar()
 $q.dark.set("auto")
 const about = ref(null)
 const importFile = ref(null)
+
 </script>
 
 <script>
@@ -28,6 +29,14 @@ var deviceNames = { "none": "No device detected" }
 var deviceListKey = ref(0)
 var popup = ref(undefined)
 const defaultState = { "expanded": [true, true, true] }
+
+// This is a hack for ancient systems that cannot easily run
+// nodejs 17. With this I have been able to run on nodejs v14.21.3.
+if (structuredClone === undefined) {
+  var structuredClone = val => {
+      return JSON.parse(JSON.stringify(val))
+  }
+}
 
 export default {
   setup() {
