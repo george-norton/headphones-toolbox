@@ -86,7 +86,7 @@ export default {
   },
   data() {
     return {
-      tab: ref(0),
+      tab: ref(undefined),
       tabs: reactive([]),
       devices: reactive([]),
       deviceOptions: reactive([]),
@@ -186,7 +186,12 @@ export default {
       for (var i = 0; i < this.tabs.length; i++) {
         if (this.tabs[i].id == this.tab) {
           this.tabs.splice(i, 1)
-          this.tab = Math.min(id, this.tabs.length - 1)
+          if (this.tabs.length) {
+            this.tab = Math.min(id, this.tabs.length - 1)
+          }
+          else {
+            this.tab = undefined
+          }
           i--
         }
         else {
@@ -474,16 +479,17 @@ export default {
           <q-btn flat dense icon="more_vert">
             <q-menu>
               <q-list style="min-width: 14em">
-                <q-item clickable v-close-popup @click="exportConfiguration()">
+                <q-item clickable v-close-popup @click="exportConfiguration()" :disable="this.tab === undefined">
                   <q-item-section>Export to JSON</q-item-section>
                 </q-item>
                 <q-item clickable v-close-popup @click="importConfiguration()">
                   <q-item-section>Import from JSON</q-item-section>
                 </q-item>
-                <q-item clickable v-close-popup :disable="!validated" @click="readDeviceConfiguration()">
+                <q-item clickable v-close-popup :disable="(this.tab === undefined) || !validated"
+                  @click="readDeviceConfiguration()">
                   <q-item-section>Read config Ffrom device</q-item-section>
                 </q-item>
-                <q-item clickable v-close-popup @click="readDefaultConfiguration()">
+                <q-item clickable v-close-popup :disable="this.tab === undefined" @click="readDefaultConfiguration()">
                   <q-item-section>Reset config to default</q-item-section>
                 </q-item>
               </q-list>
