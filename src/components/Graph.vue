@@ -60,32 +60,32 @@ export default {
   watch: {
     filters: {
       handler: debounce(function () {
-        if (this.filters == undefined)
-          return;
         magnitudeSum.fill(0);
-        const config = this.filters.filters;
-        for (var i in config) {
-          if (magnitude.length <= i) {
-            magnitude.push(new Float32Array(STEPS))
-            previousConfig.push(undefined)
-          }
-          var cfg = JSON.stringify(config[i])
-          if (previousConfig[i] !== cfg && config[i].enabled) {
-            if (config[i].filter_type == "custom_iir") {
-              if (config[i].a0 != 0) {
-                const iirFilter = new IIRFilterNode(audioCtx, { feedforward: [config[i].b0, config[i].b1, config[i].b2], feedback: [config[i].a0, config[i].a1, config[i].a2] })
+        if (this.filters !== undefined) {
+          const config = this.filters.filters;
+          for (var i in config) {
+            if (magnitude.length <= i) {
+              magnitude.push(new Float32Array(STEPS))
+              previousConfig.push(undefined)
+            }
+            var cfg = JSON.stringify(config[i])
+            if (previousConfig[i] !== cfg && config[i].enabled) {
+              if (config[i].filter_type == "custom_iir") {
+                if (config[i].a0 != 0) {
+                  const iirFilter = new IIRFilterNode(audioCtx, { feedforward: [config[i].b0, config[i].b1, config[i].b2], feedback: [config[i].a0, config[i].a1, config[i].a2] })
+                  iirFilter.getFrequencyResponse(frequency, magnitude[i], phaseResponse)
+                }
+              }
+              else {
+                const iirFilter = new IIRFilterNode(audioCtx, getFilterCoefficients(config[i].filter_type, config[i].f0, config[i].db_gain, config[i].q))
                 iirFilter.getFrequencyResponse(frequency, magnitude[i], phaseResponse)
               }
-            }
-            else {
-              const iirFilter = new IIRFilterNode(audioCtx, getFilterCoefficients(config[i].filter_type, config[i].f0, config[i].db_gain, config[i].q))
-              iirFilter.getFrequencyResponse(frequency, magnitude[i], phaseResponse)
-            }
 
-            previousConfig[i] = cfg
-          }
-          for (var j = 0; j < STEPS; j += 1) {
-            magnitudeSum[j] += magnitude[i][j]
+              previousConfig[i] = cfg
+            }
+            for (var j = 0; j < STEPS; j += 1) {
+              magnitudeSum[j] += magnitude[i][j]
+            }
           }
         }
         this.chartData = {

@@ -478,7 +478,7 @@ export default {
 
     <q-footer elevated>
       <div class="block full-width">
-        <GraphVue ref="graph" v-model:filters="tabs[tab]" />
+        <GraphVue v-model:filters="tabs[tab]" />
       </div>
 
     </q-footer>
