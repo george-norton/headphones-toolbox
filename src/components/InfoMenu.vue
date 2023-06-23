@@ -17,7 +17,7 @@
 </template>
   
 <script>
-import { ref, reactive } from 'vue'
+import { ref } from 'vue'
 
 export default {
   setup() {

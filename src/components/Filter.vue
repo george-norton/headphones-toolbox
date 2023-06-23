@@ -130,7 +130,7 @@
 </template>
  
 <script>
-import { ref, toRefs } from 'vue'
+import { ref } from 'vue'
 import { getCssVar } from 'quasar'
 import { getFilterCoefficients } from '@/components/FilterCoefficients.js'
 

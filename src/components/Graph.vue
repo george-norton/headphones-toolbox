@@ -4,31 +4,22 @@
      
 <script>
 import { Line } from 'vue-chartjs'
-import { ref, reactive, toRaw } from 'vue'
 import { getCssVar } from 'quasar'
 import debounce from 'lodash.debounce'
 import { useQuasar } from 'quasar'
 import {
   Chart as ChartJS,
-  CategoryScale,
-  LogarithmicScale,
   LinearScale,
+  LogarithmicScale,
   PointElement,
-  LineElement,
-  Title,
-  Tooltip,
-  Legend
+  LineElement
 } from 'chart.js'
 
 ChartJS.register(
-  CategoryScale,
   LinearScale,
   LogarithmicScale,
   PointElement,
-  LineElement,
-  Title,
-  Tooltip,
-  Legend
+  LineElement
 )
 import { getFilterCoefficients } from '@/components/FilterCoefficients.js'
 
