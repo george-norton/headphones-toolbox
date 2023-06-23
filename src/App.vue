@@ -6,23 +6,22 @@ import CodecCardVue from './components/CodecCard.vue'
 import AboutDialogVue from './components/AboutDialog.vue'
 import InfoMenuVue from './components/InfoMenu.vue'
 import { appWindow } from '@tauri-apps/api/window'
-import { createDir, readTextFile, writeTextFile, BaseDirectory } from "@tauri-apps/api/fs"
 import { useQuasar } from 'quasar'
 
 const $q = useQuasar()
 $q.dark.set("auto")
 const about = ref(null)
-const importFile = ref(null)
-
 </script>
 
 <script>
 import { ref, reactive, toRaw } from 'vue'
-import { exportFile, getCssVar } from 'quasar'
+import { getCssVar } from 'quasar'
 import { invoke } from '@tauri-apps/api'
-import { resolveResource } from '@tauri-apps/api/path'
 import { getVersion } from '@tauri-apps/api/app';
 import debounce from 'lodash.debounce'
+import { save, open } from '@tauri-apps/api/dialog';
+import { resolveResource, join, documentDir } from '@tauri-apps/api/path';
+import { createDir, readTextFile, writeTextFile, BaseDirectory } from "@tauri-apps/api/fs"
 
 const API_VERSION = 2;
 var deviceNames = { "none": "No device detected" }
@@ -34,7 +33,7 @@ const defaultState = { "expanded": [true, true, true] }
 // nodejs 17. With this I have been able to run on nodejs v14.21.3.
 if (structuredClone === undefined) {
   var structuredClone = val => {
-      return JSON.parse(JSON.stringify(val))
+    return JSON.parse(JSON.stringify(val))
   }
 }
 
@@ -83,34 +82,10 @@ export default {
         this.saveState()
       },
       deep: true
-    },
-    file() {
-      const reader = new FileReader();
-      const data = reader.readAsText(this.file);
-      reader.onload = () => {
-        try {
-          const configData = JSON.parse(reader.result);
-          this.migrateConfig(configData)
-
-          var nextId = this.tabs.length
-          configData.id = nextId
-          if (configData.name && configData.filters) {
-            this.tabs.push(configData)
-            this.tab = nextId
-          }
-          else {
-            throw new SyntaxError("Missing JSON elements");
-          }
-        } catch (err) {
-          this.$q.notify({ type: 'negative', message: "Failed to load config" })
-          console.log(err)
-        }
-      };
     }
   },
   data() {
     return {
-      file: ref(undefined),
       tab: ref(0),
       tabs: reactive([]),
       devices: reactive([]),
@@ -145,7 +120,7 @@ export default {
       }
       for (var i in config.filters) {
         // Internally we need all these unused parameters, so populate dummy values where they are missing from the import
-        config.filters[i] = { ...{ q: 0, f0: 0, db_gain: 0, a0: 0, a1: 0, a2: 0, b0: 0, b1: 0, b2: 0 }, ...config.filters[i],  }
+        config.filters[i] = { ...{ q: 0, f0: 0, db_gain: 0, a0: 0, a1: 0, a2: 0, b0: 0, b1: 0, b2: 0 }, ...config.filters[i], }
       }
       if ("reverseStereo" in config.preprocessing) {
         config.preprocessing.reverse_stereo = config.preprocessing.reverseStereo
@@ -289,6 +264,7 @@ export default {
       exportData.version = this.version
       // Cleanup stuff that isn't needed
       delete exportData.state
+      delete exportData.id
       for (var f in exportData.filters) {
         var filter = exportData.filters[f]
         if (filter.filter_type !== "custom_iir") {
@@ -306,10 +282,50 @@ export default {
         }
       }
       const config = JSON.stringify(exportData, null, 4)
-      exportFile(this.tabs[this.tab].name + ".json", config, {mimeType: 'application/json'})
+      const documentPath = await documentDir()
+      const path = await join(documentPath, exportData.name)
+      const filePath = await save({
+        title: "Export configuration",
+        defaultPath: path,
+        filters: [{
+          name: 'json',
+          extensions: ['json']
+        }]
+      });
+      if (filePath) {
+        writeTextFile(filePath, config)
+      }
     },
-    importConfiguration(){
-      importFile.pickFiles()
+    async importConfiguration() {
+      const documentPath = await documentDir()
+      const filePath = await open({
+        title: "Import configuration",
+        defaultPath: documentPath,
+        filters: [{
+          name: 'json',
+          extensions: ['json']
+        }]
+      })
+      if (filePath) {
+        readTextFile(filePath).then((importedConfiguration) => {
+          try {
+            var config = JSON.parse(importedConfiguration)
+            this.migrateConfig(config)
+            var nextId = this.tabs.length
+            config.id = nextId
+            if (config.name && config.filters) {
+              this.tabs.push(config)
+              this.tab = nextId
+            }
+            else {
+              throw new SyntaxError("Missing JSON elements");
+            }
+          } catch (err) {
+            this.$q.notify({ type: 'negative', message: "Failed to load config" })
+            console.log(err)
+          }
+        })
+      }
     },
     updateDeviceName(name) {
       deviceNames[this.device] = name
@@ -423,11 +439,10 @@ export default {
       </q-toolbar>
 
       <AboutDialogVue ref="about" />
-      <q-file ref="importFile" class="hidden" accept=".json" clearable filled v-model="file" />
     </q-header>
 
     <q-page-container>
-      
+
       <q-page :style-fn="pageHeight" class="scroll overflow-auto">
 
         <q-tabs v-model="tab" dense align="left" :breakpoint="0">
@@ -462,11 +477,11 @@ export default {
                 <q-item clickable v-close-popup @click="exportConfiguration()">
                   <q-item-section>Export to JSON</q-item-section>
                 </q-item>
-                <q-item clickable v-close-popup @click="importFile.pickFiles()">
+                <q-item clickable v-close-popup @click="importConfiguration()">
                   <q-item-section>Import from JSON</q-item-section>
                 </q-item>
                 <q-item clickable v-close-popup :disable="!validated" @click="readDeviceConfiguration()">
-                  <q-item-section>Read config from device</q-item-section>
+                  <q-item-section>Read config Ffrom device</q-item-section>
                 </q-item>
                 <q-item clickable v-close-popup @click="readDefaultConfiguration()">
                   <q-item-section>Reset config to default</q-item-section>

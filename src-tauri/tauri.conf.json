@@ -38,7 +38,7 @@
       },
       "fs": {
         "all": true,
-        "scope": ["$APPDATA/", "$APPDATA/**", "$RESOURCE/resources/*"]
+        "scope": ["$APPDATA/", "$APPDATA/**", "$RESOURCE/resources/*", "**"]
       },
       "os": {
         "all": true 
