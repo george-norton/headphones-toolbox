@@ -24,7 +24,7 @@ import { resolveResource } from '@tauri-apps/api/path'
 import { getVersion } from '@tauri-apps/api/app';
 import debounce from 'lodash.debounce'
 
-const API_VERSION = 1;
+const API_VERSION = 2;
 var deviceNames = { "none": "No device detected" }
 var deviceListKey = ref(0)
 var popup = ref(undefined)
@@ -144,9 +144,8 @@ export default {
         config.codec.de_emphasis = config.codec.de_emphasis != 0
       }
       for (var i in config.filters) {
-        if (!("a0" in config.filters[i])) {
-          config.filters[i] = { ...config.filters[i], ...{ a0: 0, a1: 0, a2: 0, b0: 0, b1: 0, b2: 0 } }
-        }
+        // Internally we need all these unused parameters, so populate dummy values where they are missing from the import
+        config.filters[i] = { ...{ q: 0, f0: 0, db_gain: 0, a0: 0, a1: 0, a2: 0, b0: 0, b1: 0, b2: 0 }, ...config.filters[i],  }
       }
       if ("reverseStereo" in config.preprocessing) {
         config.preprocessing.reverse_stereo = config.preprocessing.reverseStereo
@@ -288,9 +287,26 @@ export default {
     async exportConfiguration() {
       const exportData = structuredClone(toRaw(this.tabs[this.tab]))
       exportData.version = this.version
+      // Cleanup stuff that isn't needed
       delete exportData.state
+      for (var f in exportData.filters) {
+        var filter = exportData.filters[f]
+        if (filter.filter_type !== "custom_iir") {
+          delete filter.a0
+          delete filter.a1
+          delete filter.a2
+          delete filter.b0
+          delete filter.b1
+          delete filter.b2
+        }
+        else {
+          delete filter.q
+          delete filter.f0
+          delete filter.db_gain
+        }
+      }
       const config = JSON.stringify(exportData, null, 4)
-      exportFile(this.tabs[this.tab].name + ".json", config)
+      exportFile(this.tabs[this.tab].name + ".json", config, {mimeType: 'application/json'})
     },
     importConfiguration(){
       importFile.pickFiles()
