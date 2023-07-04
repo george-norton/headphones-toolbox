@@ -22,6 +22,7 @@ use window_shadows::set_shadow;
 
 pub const LIBUSB_RECIPIENT_DEVICE: u8 = 0x00;
 pub const LIBUSB_REQUEST_TYPE_VENDOR: u8 = 0x02 << 5;
+const MAX_CFG_LEN: usize = 256;
 
 #[derive(Debug)]
 pub struct ConnectionState {
@@ -175,7 +176,7 @@ struct VersionInfo {
     pico_sdk_version: String
 }
 
-fn send_cmd(connection_state: State<'_, Mutex<ConnectionState>>, buf: &[u8]) -> Result<[u8;256], &'static str> {
+fn send_cmd(connection_state: State<'_, Mutex<ConnectionState>>, buf: &[u8]) -> Result<[u8; MAX_CFG_LEN], &'static str> {
     let connection = connection_state.lock().unwrap();
     match &connection.connected {
         Some(device) => {
@@ -191,7 +192,7 @@ fn send_cmd(connection_state: State<'_, Mutex<ConnectionState>>, buf: &[u8]) -> 
                         }
                     }
 
-                    let mut result = [0; 256];
+                    let mut result = [0; MAX_CFG_LEN];
                     let mut read_length : u16 = 0;
                     let mut length : u16 = 4;
                     while read_length < length {
@@ -202,7 +203,7 @@ fn send_cmd(connection_state: State<'_, Mutex<ConnectionState>>, buf: &[u8]) -> 
                                     let length_bytes : [u8; 2] = result[2..4].try_into().unwrap();
                                     length = u16::from_le_bytes(length_bytes);
                                     //println!("Length: {}", length);
-                                    if length > 256 {
+                                    if usize::from(length) > MAX_CFG_LEN {
                                         println!("Overflow! {}", length);
                                         return Err("Overflow error");
                                     }

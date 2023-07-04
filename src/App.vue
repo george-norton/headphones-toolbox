@@ -207,7 +207,6 @@ export default {
           "filters": this.tabs[this.tab].filters,
           "codec": this.tabs[this.tab].codec
         }
-        console.log(this.versions)
         if (!("current_version" in this.versions) || this.versions.current_version < 2) {
           console.log(sendConfig)
           for (var f in sendConfig.filters) {
@@ -479,17 +478,17 @@ export default {
           <q-btn flat dense icon="more_vert">
             <q-menu>
               <q-list style="min-width: 14em">
-                <q-item clickable v-close-popup @click="exportConfiguration()" :disable="this.tab === undefined">
+                <q-item clickable v-close-popup @click="exportConfiguration()" :disable="tab === undefined">
                   <q-item-section>Export to JSON</q-item-section>
                 </q-item>
                 <q-item clickable v-close-popup @click="importConfiguration()">
                   <q-item-section>Import from JSON</q-item-section>
                 </q-item>
-                <q-item clickable v-close-popup :disable="(this.tab === undefined) || !validated"
+                <q-item clickable v-close-popup :disable="(tab === undefined) || !validated"
                   @click="readDeviceConfiguration()">
                   <q-item-section>Read config Ffrom device</q-item-section>
                 </q-item>
-                <q-item clickable v-close-popup :disable="this.tab === undefined" @click="readDefaultConfiguration()">
+                <q-item clickable v-close-popup :disable="tab === undefined" @click="readDefaultConfiguration()">
                   <q-item-section>Reset config to default</q-item-section>
                 </q-item>
               </q-list>
