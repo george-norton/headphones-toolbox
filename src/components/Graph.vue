@@ -71,11 +71,12 @@ export default {
                 const iirFilter = new IIRFilterNode(audioCtx, getFilterCoefficients(config[i].filter_type, config[i].f0, config[i].db_gain, config[i].q))
                 iirFilter.getFrequencyResponse(frequency, magnitude[i], phaseResponse)
               }
-
               previousConfig[i] = cfg
             }
             for (var j = 0; j < STEPS; j += 1) {
-              magnitudeSum[j] += magnitude[i][j]
+              if (config[i].enabled) {
+                magnitudeSum[j] += magnitude[i][j]
+              }
             }
           }
         }
