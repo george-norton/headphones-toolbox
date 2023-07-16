@@ -395,7 +395,7 @@ export default {
         <div style="pointer-events: none;">Ploopy Headphones Toolbox</div>
         <q-space />
         <q-btn dense flat icon="minimize" @click="appWindow.minimize()" />
-        <q-btn dense flat icon="crop_square" @click="appWindow.maximize()" />
+        <q-btn dense flat icon="crop_square" @click="appWindow.toggleMaximize()" />
         <q-btn dense flat icon="close" @click="appWindow.close()" />
       </q-bar>
 
