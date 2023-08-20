@@ -486,7 +486,7 @@ export default {
                 </q-item>
                 <q-item clickable v-close-popup :disable="(tab === undefined) || !validated"
                   @click="readDeviceConfiguration()">
-                  <q-item-section>Read config Ffrom device</q-item-section>
+                  <q-item-section>Read config from device</q-item-section>
                 </q-item>
                 <q-item clickable v-close-popup :disable="tab === undefined" @click="readDefaultConfiguration()">
                   <q-item-section>Reset config to default</q-item-section>

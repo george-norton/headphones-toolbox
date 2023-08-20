@@ -1,6 +1,6 @@
 [package]
 name = "headphones-toolbox"
-version = "0.0.1"
+version = "0.0.3"
 description = "An application configure Ploopy Headphones."
 authors = ["George Norton"]
 license = ""

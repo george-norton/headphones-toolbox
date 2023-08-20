@@ -22,7 +22,7 @@ use window_shadows::set_shadow;
 
 pub const LIBUSB_RECIPIENT_DEVICE: u8 = 0x00;
 pub const LIBUSB_REQUEST_TYPE_VENDOR: u8 = 0x02 << 5;
-const MAX_CFG_LEN: usize = 256;
+const MAX_CFG_LEN: usize = 512;
 
 #[derive(Debug)]
 pub struct ConnectionState {
