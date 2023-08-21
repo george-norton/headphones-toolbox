@@ -1,6 +1,6 @@
 {
     "preprocessing": {
-        "preamp": -161,
+        "preamp": -7.0,
         "reverse_stereo": true
     },
     "filters": [
