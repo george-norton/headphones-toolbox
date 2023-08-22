@@ -12,14 +12,14 @@
             "enabled": true
         },
         {
-            "filter_type": "lowshelf",
+            "filter_type": "peaking",
             "q": 0.5,
             "f0": 60,
             "db_gain": -6.7,
             "enabled": true
         },
         {
-            "filter_type": "peaking",
+            "filter_type": "lowshelf",
             "q": 0.71,
             "f0": 105,
             "db_gain": 5.5,
