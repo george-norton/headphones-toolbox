@@ -22,6 +22,7 @@ use window_shadows::set_shadow;
 
 pub const LIBUSB_RECIPIENT_DEVICE: u8 = 0x00;
 pub const LIBUSB_REQUEST_TYPE_VENDOR: u8 = 0x02 << 5;
+pub const USB_TIMEOUT : Duration = Duration::from_millis(250);
 const MAX_CFG_LEN: usize = 512;
 
 #[derive(Debug)]
@@ -135,9 +136,9 @@ enum FilterType {
 #[derive(Serialize, Deserialize, Default)]
 struct Filter {
     filter_type: String,
-    q: f64,
-    f0: f64,
-    db_gain: f64,
+    q: f32,
+    f0: f32,
+    db_gain: f32,
     a0: f64,
     a1: f64,
     a2: f64,
@@ -149,7 +150,7 @@ struct Filter {
 
 #[derive(Serialize, Deserialize, Default)]
 struct Preprocessing {
-    preamp: f64,
+    preamp: f32,
     reverse_stereo: bool
 }
 
@@ -182,10 +183,9 @@ fn send_cmd(connection_state: State<'_, Mutex<ConnectionState>>, buf: &[u8]) -> 
         Some(device) => {
             match &device.configuration_interface {
                 Some(interface) => {
-                    let timeout = Duration::from_millis(100);
                     //println!("Write {} bytes to {}", buf.len(), interface.output);
-                    match device.device_handle.write_bulk(interface.output, &buf, timeout) {
-                        Ok(len) => (),
+                    match device.device_handle.write_bulk(interface.output, &buf, USB_TIMEOUT) {
+                        Ok(_len) => (),
                         Err(err) => {
                             println!("Error {}", err);
                             return Err("Failed to write to the configuration interface");
@@ -196,7 +196,7 @@ fn send_cmd(connection_state: State<'_, Mutex<ConnectionState>>, buf: &[u8]) -> 
                     let mut read_length : u16 = 0;
                     let mut length : u16 = 4;
                     while read_length < length {
-                        match device.device_handle.read_bulk(interface.input, &mut result, timeout) {
+                        match device.device_handle.read_bulk(interface.input, &mut result, USB_TIMEOUT) {
                             Ok(len) => { 
                                 //println!("Read {} {}/{}", len, read_length, length);
                                 if read_length < 4 && len >=4 {
@@ -341,7 +341,7 @@ fn load_config(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<St
                 let length_val = cur.read_u16::<LittleEndian>().unwrap();
                 match type_val{
                     x if x == StructureTypes::PreProcessingConfiguration as u16 => {
-                        cfg.preprocessing.preamp = cur.read_f64::<LittleEndian>().unwrap() * 100.0;
+                        cfg.preprocessing.preamp = cur.read_f32::<LittleEndian>().unwrap() * 100.0;
                         cfg.preprocessing.reverse_stereo = cur.read_u8().unwrap() != 0;
                         cur.seek(SeekFrom::Current(3)); // reserved bytes
                     },
@@ -377,12 +377,12 @@ fn load_config(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<St
                                 filter.b2 = cur.read_f64::<LittleEndian>().unwrap();
                             }
                             else {
-                                filter.f0 = cur.read_f64::<LittleEndian>().unwrap();
+                                filter.f0 = cur.read_f32::<LittleEndian>().unwrap();
                                 filter.db_gain;
                                 if filter_args == 3 {
-                                    filter.db_gain = cur.read_f64::<LittleEndian>().unwrap();
+                                    filter.db_gain = cur.read_f32::<LittleEndian>().unwrap();
                                 }
-                                filter.q = cur.read_f64::<LittleEndian>().unwrap();
+                                filter.q = cur.read_f32::<LittleEndian>().unwrap();
                             }
                             cfg.filters.push(filter)
                         }
@@ -419,7 +419,7 @@ fn factory_reset(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<
     buf.extend_from_slice(&(4u16).to_le_bytes());
 
     match &send_cmd(connection_state, &buf) {
-        Ok(r) => { println!("Factory Reset {:02X?}", r); return Ok(true)}, // TODO: Check for NOK
+        Ok(_r) => { return Ok(true) }, // TODO: Check for NOK
         Err(_) => { println!("Factory Reset Err"); return Err(()) }
     }
 }
@@ -430,7 +430,7 @@ fn reboot_bootloader(connection_state: State<Mutex<ConnectionState>>) -> bool {
     match &connection.connected {
         Some(device) => {
             let buf : [u8;0] = [];
-            let r = device.device_handle.write_control(LIBUSB_RECIPIENT_DEVICE | LIBUSB_REQUEST_TYPE_VENDOR, 0, 0x2e8a, 0, &buf, Duration::from_millis(100));
+            let r = device.device_handle.write_control(LIBUSB_RECIPIENT_DEVICE | LIBUSB_REQUEST_TYPE_VENDOR, 0, 0x2e8a, 0, &buf, USB_TIMEOUT);
             println!("Reboot Device: {}", r.is_err());
 
             return true;

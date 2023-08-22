@@ -23,7 +23,7 @@ import { save, open } from '@tauri-apps/api/dialog';
 import { resolveResource, join, documentDir } from '@tauri-apps/api/path';
 import { createDir, readTextFile, writeTextFile, BaseDirectory } from "@tauri-apps/api/fs"
 
-const API_VERSION = 2;
+const API_VERSION = 3;
 var deviceNames = { "none": "No device detected" }
 var deviceListKey = ref(0)
 var popup = ref(undefined)
@@ -60,10 +60,10 @@ export default {
         this.sendState()
         invoke("read_version_info").then((version) => {
           this.versions = { ...JSON.parse(version), ...{ "serial_number": this.device, "client_api_version": API_VERSION } }
-          if (version.minimum_supported_version > API_VERSION) {
-            this.$q.notify({ type: 'negative', message: "Fimrware is too new, this version of Ploopy Headphones Toolkit is not supported." })
+          if (this.versions.minimum_supported_version> API_VERSION) {
+            this.$q.notify({ type: 'negative', message: "Firmware is too new, this version of Ploopy Headphones Toolkit is not supported." })
           }
-          else if (API_VERSION > version.current_version) {
+          else if (API_VERSION > this.versions.current_version) {
             this.$q.notify({ type: 'negative', message: "Firmware is too old, this version of Ploopy Headphones Toolkit is not supported." })
           }
           else {
@@ -408,7 +408,7 @@ export default {
           </template>
         </q-select>
 
-        <InfoMenuVue :disable="!connected" v-bind:versions="versions" />
+        <InfoMenuVue :disable="!connected" v-bind:versions="versions" :class="{ invalid: !this.validated }" />
         <q-btn flat dense icon="edit" :disable="!connected">
           <q-tooltip>
             Rename this device.

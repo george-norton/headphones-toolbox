@@ -57,7 +57,7 @@ export default {
                 </q-list>
                 <div class="row">
                     <q-btn fab icon="add" label="New Filter" color="primary" @click="addFilter()"
-                        :disable="this.filters.length >= 16" />
+                        :disable="this.filters.length >= 32" />
                 </div>
             </q-card-section>
         </q-expansion-item>
