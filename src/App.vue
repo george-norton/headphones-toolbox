@@ -408,7 +408,7 @@ export default {
           </template>
         </q-select>
 
-        <InfoMenuVue :disable="!connected" v-bind:versions="versions" :class="{ invalid: !this.validated }" />
+        <InfoMenuVue :disable="!connected" v-bind:versions="versions"/>
         <q-btn flat dense icon="edit" :disable="!connected">
           <q-tooltip>
             Rename this device.
