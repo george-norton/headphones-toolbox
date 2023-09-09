@@ -20,7 +20,8 @@ import { invoke } from '@tauri-apps/api'
 import { getVersion } from '@tauri-apps/api/app';
 import debounce from 'lodash.debounce'
 import { save, open } from '@tauri-apps/api/dialog';
-import { resolveResource, join, documentDir } from '@tauri-apps/api/path';
+import { resolveResource, join, documentDir, appLogDir } from '@tauri-apps/api/path';
+import { shell } from '@tauri-apps/api';
 import { createDir, readTextFile, writeTextFile, BaseDirectory } from "@tauri-apps/api/fs"
 
 const API_VERSION = 3;
@@ -434,6 +435,9 @@ export default {
                 <q-item-section>Erase saved configuration</q-item-section>
               </q-item>
               <q-separator />
+              <q-item clickable v-close-popup @click="appLogDir().then((logs) => { shell.open(logs+'headphones_toolbox.log') });">
+                <q-item-section>Show log</q-item-section>
+              </q-item>
               <q-item clickable v-close-popup @click="about.show()">
                 <q-item-section>About</q-item-section>
               </q-item>

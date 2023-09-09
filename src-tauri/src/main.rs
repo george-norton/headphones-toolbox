@@ -20,6 +20,14 @@ use std::io::BufRead;
 use tauri::Manager;
 use window_shadows::set_shadow;
 
+// Logging
+use log::{ info, warn, error, debug };
+extern crate simplelog;
+use simplelog::*;
+use std::fs::File;
+use std::fs;
+use tauri::PathResolver;
+
 pub const LIBUSB_RECIPIENT_DEVICE: u8 = 0x00;
 pub const LIBUSB_REQUEST_TYPE_VENDOR: u8 = 0x02 << 5;
 pub const USB_TIMEOUT : Duration = Duration::from_millis(250);
@@ -187,7 +195,7 @@ fn send_cmd(connection_state: State<'_, Mutex<ConnectionState>>, buf: &[u8]) -> 
                     match device.device_handle.write_bulk(interface.output, &buf, USB_TIMEOUT) {
                         Ok(_len) => (),
                         Err(err) => {
-                            println!("Error {}", err);
+                            error!("Failed to write to the configuration interface: {}", err);
                             return Err("Failed to write to the configuration interface");
                         }
                     }
@@ -204,14 +212,14 @@ fn send_cmd(connection_state: State<'_, Mutex<ConnectionState>>, buf: &[u8]) -> 
                                     length = u16::from_le_bytes(length_bytes);
                                     //println!("Length: {}", length);
                                     if usize::from(length) > MAX_CFG_LEN {
-                                        println!("Overflow! {}", length);
+                                        error!("Overflow reading from the config interface, got {} bytes, max size is {} bytes.", length, MAX_CFG_LEN);
                                         return Err("Overflow error");
                                     }
                                 }
                                 read_length += len as u16;
                             },
                             Err(err) => { 
-                                println!("Read error {}", err);
+                                error!("Error reading from the configuration inteface: {}", err);
                                 return Err("Read Error");
                             }
                         }
@@ -219,13 +227,13 @@ fn send_cmd(connection_state: State<'_, Mutex<ConnectionState>>, buf: &[u8]) -> 
                     return Ok(result);
                 },
                 None => {
-                    println!("No configuration interface, update your headphones firmware");
+                    warn!("No configuration interface, update your headphones firmware");
                     return Err("No configuration interface");
                 }
             }
         },
         None => {
-            println!("The device is not connected.");
+            info!("The device is not connected.");
             return Err("Not connected");
         }
     }
@@ -287,7 +295,7 @@ fn write_config(config: &str, connection_state: State<'_, Mutex<ConnectionState>
             codec_payload.push(cfg.codec.de_emphasis as u8);
         },
         Err(e) => {
-            println!("Error: {}", e);
+            error!("Error serializing config: {}", e);
             return Ok(false);
         }
     }
@@ -307,7 +315,10 @@ fn write_config(config: &str, connection_state: State<'_, Mutex<ConnectionState>
     
     match &send_cmd(connection_state, &buf) {
         Ok(_) => return Ok(true), // TODO: Check for NOK
-        Err(_) => return Err(())
+        Err(e) => {
+            error!("Error writing config: {}", e);
+            return Err(())
+        }
     }
 }
 
@@ -319,7 +330,10 @@ fn save_config(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<bo
 
     match &send_cmd(connection_state, &buf) {
         Ok(_) => return Ok(true), // TODO: Check for NOK
-        Err(_) => return Err(())
+        Err(e) => {
+            error!("Error saving config: {}", e);
+            return Err(())
+        }
     }
 }
 
@@ -365,7 +379,7 @@ fn load_config(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<St
                                 x if x == FilterType::LowShelf as u8 => { filter.filter_type = "lowshelf".to_string(); filter_args = 3; },
                                 x if x == FilterType::HighShelf as u8 => { filter.filter_type = "highshelf".to_string(); filter_args = 3; },
                                 x if x == FilterType::CustomIIR as u8 => { filter.filter_type = "custom_iir".to_string(); filter_args = 6; },
-                                _ => return { println!("Unknown filter type {}", filter_type); Err(()) }
+                                _ => return { error!("Unknown filter type {}", filter_type); Err(()) }
                             }
 
                             if filter_type == FilterType::CustomIIR as u8 {
@@ -388,7 +402,7 @@ fn load_config(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<St
                         }
 
                         if cur.position() != end {
-                            println!("Read off the end of the filters TLV");
+                            error!("Read off the end of the filters TLV");
                             return Err(())
                         }
                     },
@@ -399,7 +413,7 @@ fn load_config(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<St
                         cfg.codec.de_emphasis = cur.read_u8().unwrap() != 0;
                     },
                     _ => {
-                        println!("Unsupported TLV type {}", type_val);
+                        warn!("Unsupported TLV type {}", type_val);
                     }
                 }
                 //println!("\tT: {} L: {}", type_val, length_val);
@@ -408,7 +422,10 @@ fn load_config(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<St
             }
             return Ok(serde_json::to_string(&cfg).unwrap())
         }, // TODO: Check for NOK
-        Err(_) => return Err(())
+        Err(e) => {
+            error!("Error reading config: {}", e);
+            return Err(())
+        }
     }
 }
 
@@ -420,7 +437,7 @@ fn factory_reset(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<
 
     match &send_cmd(connection_state, &buf) {
         Ok(_r) => { return Ok(true) }, // TODO: Check for NOK
-        Err(_) => { println!("Factory Reset Err"); return Err(()) }
+        Err(e) => { error!("Factory reset error: {}", e); return Err(()) }
     }
 }
 
@@ -431,12 +448,12 @@ fn reboot_bootloader(connection_state: State<Mutex<ConnectionState>>) -> bool {
         Some(device) => {
             let buf : [u8;0] = [];
             let r = device.device_handle.write_control(LIBUSB_RECIPIENT_DEVICE | LIBUSB_REQUEST_TYPE_VENDOR, 0, 0x2e8a, 0, &buf, USB_TIMEOUT);
-            println!("Reboot Device: {}", r.is_err());
+            info!("Reboot Device: {}", r.is_err());
 
             return true;
         },
         None => {
-            println!("No connection");
+            warn!("No connection");
             return false;
         }
     }
@@ -477,7 +494,7 @@ fn read_version_info(connection_state: State<'_, Mutex<ConnectionState>>) -> Res
             };
             return Ok(serde_json::to_string(&versions).unwrap())
         }, // TODO: Check for NOK
-        Err(_) => return Err(())
+        Err(e) => { error!("Error reading device version information: {}", e); return Err(()) }
     }
 }
 #[tauri::command]
@@ -489,7 +506,7 @@ fn open(serial_number: &str, connection_state: State<Mutex<ConnectionState>>) ->
 
     let devices = match context.devices() {
         Ok(d) => d,
-        Err(_) => return false,
+        Err(e) => { error!("Device not found: {}", e); return false },
     };
 
     let mut connection = connection_state.lock().unwrap();
@@ -506,11 +523,12 @@ fn open(serial_number: &str, connection_state: State<Mutex<ConnectionState>>) ->
                                 Some(i) => { handle.claim_interface(i.interface).unwrap(); },
                                 None => { println!("Could not detect a configuration interface"); return false; }
                             }
+                            info!("Opened the device at address {}, with serial number {}", address, sn);
                             connection.connected = Some(ConnectedDevice {device_handle: handle, configuration_interface: configuration_interface });
                             return true
                         },
                         Err(e) => {
-                            println!("Could not open {}", e);
+                            error!("Could not open {}", e);
                             return false
                         }
                     }
@@ -551,23 +569,25 @@ fn poll_devices(connection_state: State<Mutex<ConnectionState>>) -> String {
         // println!("Device {:#x}:{:#x} {:#x} {:#x} {:#x}", device_desc.vendor_id(), device_desc.product_id(), device_desc.class_code(), device.bus_number(), device.address());
 
         if device_desc.vendor_id() == 0x2e8a && device_desc.product_id() == 0xfedd {
+            info!(" New device found at address {}", address);
             match device.open() {
                 Ok(handle) => {
                     let serial_number_string_index = device_desc.serial_number_string_index().unwrap();
                     let serial_number = handle.read_string_descriptor_ascii(serial_number_string_index);
                     match serial_number {
                         Ok(sn) => {
+                            info!("Device {} has serial number {}", address, sn);
                             connection_state.lock().unwrap().serial_numbers.insert(address, sn.clone());
                             device_list.push(sn);
                         },
                         Err(e) => {
-                            println!("Get serial number failed {}", e);
+                            error!("Get serial number failed {}", e);
                             continue
                         }
                     }
                 },
                 Err(e) => {
-                    println!("Open failed {}", e);
+                    error!("Open failed {}", e);
                     continue
                 }
             }
@@ -577,6 +597,7 @@ fn poll_devices(connection_state: State<Mutex<ConnectionState>>) -> String {
     // Handle unplugged devices
     for address in known_devices
     {
+        info!("The device at address {} was disconnected", address);
         connection_state.lock().unwrap().serial_numbers.remove(&address);
     }
 
@@ -585,9 +606,22 @@ fn poll_devices(connection_state: State<Mutex<ConnectionState>>) -> String {
 
 fn main() {
     tauri::Builder::default().setup(|app| {
+            let app_log_dir_path = app.path_resolver().app_log_dir().unwrap();
+            let logfile = app_log_dir_path.join("headphones_toolbox.log");
+            let lastlog = app_log_dir_path.join("headphones_toolbox.log.1");
+            std::fs::create_dir_all(app_log_dir_path).unwrap();
+            fs::rename(logfile.as_path(), lastlog.as_path());
+        
+            CombinedLogger::init(
+                vec![
+                    TermLogger::new(LevelFilter::Warn, simplelog::Config::default(), TerminalMode::Mixed, ColorChoice::Auto),
+                    WriteLogger::new(LevelFilter::Info, simplelog::Config::default(), File::create(logfile).unwrap()),
+                ]
+            ).unwrap();
             let window = app.get_window("main").unwrap();
             #[cfg(any(windows, target_os = "macos"))]
             set_shadow(&window, true).expect("Unsupported platform!");
+            info!("Headphones Toolbox Started");
             Ok(())
         })
         .manage(Mutex::new(ConnectionState::new()))
