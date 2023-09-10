@@ -141,10 +141,11 @@ export default {
         this.tabs[this.tab] = config
       })
     },
-    readDefaultConfiguration() {
-      resolveResource('resources/configuration.json').then((configJson) =>
+    readDefaultConfiguration(filename) {
+      resolveResource('resources/'+filename).then((configJson) =>
         readTextFile(configJson).then((defaultConfiguration) => {
           var config = JSON.parse(defaultConfiguration)
+          this.migrateConfig(config)
           config.id = this.tab
           config.name = this.tabs[this.tab].name
           config.state = structuredClone(toRaw(this.tabs[this.tab].state))
@@ -166,15 +167,17 @@ export default {
       }
       invoke("load_config").then((deviceConfig) => {
         var config = JSON.parse(deviceConfig)
+        this.migrateConfig(config)
         config.name = "Unnamed configuration"
         config.id = nextId
         config.state = structuredClone(defaultState)
         this.tabs.push(config)
         this.tab = nextId
       }).catch(err => {
-        resolveResource('resources/configuration.json').then((configJson) =>
+        resolveResource('resources/oratory_15.json').then((configJson) =>
           readTextFile(configJson).then((defaultConfiguration) => {
             var config = JSON.parse(defaultConfiguration)
+            this.migrateConfig(config)
             config.id = nextId
             config.state = structuredClone(defaultState)
             this.tabs.push(config)
@@ -492,8 +495,22 @@ export default {
                   @click="readDeviceConfiguration()">
                   <q-item-section>Read config from device</q-item-section>
                 </q-item>
-                <q-item clickable v-close-popup :disable="tab === undefined" @click="readDefaultConfiguration()">
-                  <q-item-section>Reset config to default</q-item-section>
+                <q-item clickable>
+                  <q-item-section>Load EQ preset</q-item-section>
+                    <q-item-section side>
+                    <q-icon name="keyboard_arrow_right" />
+                  </q-item-section>
+                  <q-menu anchor="top end" self="top start">
+                    <q-item clickable v-close-popup :disable="tab === undefined" @click="readDefaultConfiguration('configuration.json')">
+                      <q-item-section>Original EQ</q-item-section>
+                    </q-item>
+                    <q-item clickable v-close-popup :disable="tab === undefined" @click="readDefaultConfiguration('oratory_8.json')">
+                      <q-item-section>Oratory 8 band EQ</q-item-section>
+                    </q-item>
+                    <q-item clickable v-close-popup :disable="tab === undefined" @click="readDefaultConfiguration('oratory_15.json')">
+                      <q-item-section>Oratory 15 band EQ</q-item-section>
+                    </q-item>
+                  </q-menu>
                 </q-item>
               </q-list>
             </q-menu>

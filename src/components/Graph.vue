@@ -26,7 +26,7 @@ import { getFilterCoefficients } from '@/components/FilterCoefficients.js'
 const audioCtx = new AudioContext()
 const biquadFilter = audioCtx.createBiquadFilter()
 
-const STEPS = 1024;
+const STEPS = 256;
 const frequency = new Float32Array(STEPS)
 var magnitudeSum = new Float32Array(STEPS)
 var magnitude = []

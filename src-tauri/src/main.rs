@@ -296,6 +296,7 @@ fn write_config(config: &str, connection_state: State<'_, Mutex<ConnectionState>
         },
         Err(e) => {
             error!("Error serializing config: {}", e);
+            info!("{}", config);
             return Ok(false);
         }
     }
