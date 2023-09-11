@@ -36,14 +36,16 @@ const MAX_CFG_LEN: usize = 512;
 #[derive(Debug)]
 pub struct ConnectionState {
     serial_numbers: HashMap<u16, String>, // Maps addresses to serial numbers
-    connected: Option<ConnectedDevice>
+    connected: Option<ConnectedDevice>,
+    error: bool
 }
 
 impl ConnectionState {
     fn new() -> ConnectionState {
         ConnectionState {
             serial_numbers: HashMap::new(),
-            connected: None
+            connected: None,
+            error: false
         }
     }
 }
@@ -60,6 +62,21 @@ struct ConfigurationInterface {
     interface: u8,
     input: u8,
     output: u8
+}
+
+#[derive(Serialize)]
+struct PollDeviceStatus {
+    error: bool,
+    device_list: Vec<String>
+}
+
+impl PollDeviceStatus {
+    fn new() -> PollDeviceStatus {
+        PollDeviceStatus {
+            error: false,
+            device_list: Vec::with_capacity(10)
+        }
+    }
 }
 
 fn find_configuration_endpoints<T: UsbContext>(
@@ -186,7 +203,7 @@ struct VersionInfo {
 }
 
 fn send_cmd(connection_state: State<'_, Mutex<ConnectionState>>, buf: &[u8]) -> Result<[u8; MAX_CFG_LEN], &'static str> {
-    let connection = connection_state.lock().unwrap();
+    let mut connection = connection_state.lock().unwrap();
     match &connection.connected {
         Some(device) => {
             match &device.configuration_interface {
@@ -196,6 +213,7 @@ fn send_cmd(connection_state: State<'_, Mutex<ConnectionState>>, buf: &[u8]) -> 
                         Ok(_len) => (),
                         Err(err) => {
                             error!("Failed to write to the configuration interface: {}", err);
+                            connection.error = true;
                             return Err("Failed to write to the configuration interface");
                         }
                     }
@@ -220,6 +238,7 @@ fn send_cmd(connection_state: State<'_, Mutex<ConnectionState>>, buf: &[u8]) -> 
                             },
                             Err(err) => { 
                                 error!("Error reading from the configuration inteface: {}", err);
+                                connection.error = true;
                                 return Err("Read Error");
                             }
                         }
@@ -543,8 +562,11 @@ fn open(serial_number: &str, connection_state: State<Mutex<ConnectionState>>) ->
 
 #[tauri::command]
 fn poll_devices(connection_state: State<Mutex<ConnectionState>>) -> String {
-    let mut device_list = Vec::with_capacity(10);
+    let mut status = PollDeviceStatus::new();
     let mut known_devices : HashSet<u16> = connection_state.lock().unwrap().serial_numbers.keys().cloned().collect();
+
+    status.error = connection_state.lock().unwrap().error;
+    connection_state.lock().unwrap().error = false;
 
     let context = match rusb::Context::new() {
         Ok(c) => c,
@@ -553,13 +575,16 @@ fn poll_devices(connection_state: State<Mutex<ConnectionState>>) -> String {
 
     let devices = match context.devices() {
         Ok(d) => d,
-        Err(_) => return serde_json::to_string(&device_list).unwrap(),
+        Err(_) => {
+            status.error = true;
+            return serde_json::to_string(&status).unwrap();
+        }
     };
 
     for device in devices.iter() {
         let address : u16 = ((device.bus_number() as u16) << 8) | (device.address() as u16);
         if known_devices.contains(&address) {
-            device_list.push(connection_state.lock().unwrap().serial_numbers[&address].clone());
+            status.device_list.push(connection_state.lock().unwrap().serial_numbers[&address].clone());
             known_devices.remove(&address);
             continue
         }
@@ -579,7 +604,7 @@ fn poll_devices(connection_state: State<Mutex<ConnectionState>>) -> String {
                         Ok(sn) => {
                             info!("Device {} has serial number {}", address, sn);
                             connection_state.lock().unwrap().serial_numbers.insert(address, sn.clone());
-                            device_list.push(sn);
+                            status.device_list.push(sn);
                         },
                         Err(e) => {
                             error!("Get serial number failed {}", e);
@@ -602,7 +627,7 @@ fn poll_devices(connection_state: State<Mutex<ConnectionState>>) -> String {
         connection_state.lock().unwrap().serial_numbers.remove(&address);
     }
 
-    serde_json::to_string(&device_list).unwrap()
+    serde_json::to_string(&status).unwrap()
 }
 
 fn main() {

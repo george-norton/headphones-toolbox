@@ -350,19 +350,19 @@ export default {
     },
     pollDevices() {
       invoke('poll_devices').then((message) => {
-        var devices = JSON.parse(message)
-        for (var d in devices) {
-          if (!(devices[d] in deviceNames)) {
-            if (devices.length == 1 && !("Ploopy Headphones" in deviceNames)) {
+        var status = JSON.parse(message)
+        for (var d in status.device_list) {
+          if (!(status.device_list[d] in deviceNames)) {
+            if (status.device_list.length == 1 && !("Ploopy Headphones" in deviceNames)) {
               // Most people will only have one device, so use a friendly name
-              deviceNames[devices[d]] = "Ploopy Headphones"
+              deviceNames[status.device_list[d]] = "Ploopy Headphones"
             }
             else {
-              deviceNames[devices[d]] = "Headphones [" + devices[d] + "]"
+              deviceNames[status.device_list[d]] = "Headphones [" + status.device_list[d] + "]"
             }
           }
         }
-        Object.assign(this.devices, devices)
+        Object.assign(this.devices, status.device_list)
 
         if ((this.device == undefined || this.device == "none") && this.devices.length > 0) {
           this.device = this.devices[0];
@@ -374,12 +374,17 @@ export default {
             this.connected = false
           }
           else if (this.device != "none") {
-            if (this.connected && (devices.indexOf(this.device) == -1)) {
+            if (this.connected && (this.devices.indexOf(this.device) == -1)) {
               this.$q.notify({ type: 'negative', message: "Device disconnected" })
               this.connected = false
             }
+            else if (status.error) {
+              this.$q.notify({ type: 'negative', message: "Device is in an error state, reconnecting.." })
+              this.connected = false
+              this.openDevice()
+            }
             else if (!this.connected) {
-              if (devices.indexOf(this.device) != -1) {
+              if (this.devices.indexOf(this.device) != -1) {
                 this.openDevice()
               }
             }
