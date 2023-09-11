@@ -11,8 +11,5 @@ createApp(App)
             Dark
         },
         config: {
-            notify: {
-                position: 'bottom'
-            }
         },
     }).mount("#tauri-app")

@@ -73,8 +73,8 @@ export default {
               }
               previousConfig[i] = cfg
             }
-            for (var j = 0; j < STEPS; j += 1) {
-              if (config[i].enabled) {
+            if (config[i].enabled) {
+              for (var j = 0; j < STEPS; j += 1) {
                 magnitudeSum[j] += magnitude[i][j]
               }
             }
