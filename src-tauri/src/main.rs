@@ -304,7 +304,8 @@ fn write_config(config: &str, connection_state: State<'_, Mutex<ConnectionState>
                     }
                 }
             }
-            preprocessing_payload.extend_from_slice(&(cfg.preprocessing.preamp/100.0).to_le_bytes());
+            // -1.0 as the firmware adds 1, cleanup later
+            preprocessing_payload.extend_from_slice(&(f32::powf(10.0, cfg.preprocessing.preamp/20.0) - 1.0).to_le_bytes());
             preprocessing_payload.push(cfg.preprocessing.reverse_stereo as u8);
             preprocessing_payload.extend_from_slice(&[0u8; 3]);
 
@@ -375,7 +376,9 @@ fn load_config(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<St
                 let length_val = cur.read_u16::<LittleEndian>().unwrap();
                 match type_val{
                     x if x == StructureTypes::PreProcessingConfiguration as u16 => {
-                        cfg.preprocessing.preamp = cur.read_f32::<LittleEndian>().unwrap() * 100.0;
+                        // +1 to maintain compatability with old firmwares
+                        let preamp = cur.read_f32::<LittleEndian>().unwrap() + 1.0;
+                        cfg.preprocessing.preamp = preamp.log10() * 20.0;
                         cfg.preprocessing.reverse_stereo = cur.read_u8().unwrap() != 0;
                         cur.seek(SeekFrom::Current(3)); // reserved bytes
                     },
@@ -565,6 +568,7 @@ fn poll_devices(connection_state: State<Mutex<ConnectionState>>) -> String {
     let mut status = PollDeviceStatus::new();
     let mut known_devices : HashSet<u16> = connection_state.lock().unwrap().serial_numbers.keys().cloned().collect();
 
+    // Flag any error condition to the frontend. This will cause it to try and reconnect.
     status.error = connection_state.lock().unwrap().error;
     connection_state.lock().unwrap().error = false;
 
@@ -595,7 +599,7 @@ fn poll_devices(connection_state: State<Mutex<ConnectionState>>) -> String {
         // println!("Device {:#x}:{:#x} {:#x} {:#x} {:#x}", device_desc.vendor_id(), device_desc.product_id(), device_desc.class_code(), device.bus_number(), device.address());
 
         if device_desc.vendor_id() == 0x2e8a && device_desc.product_id() == 0xfedd {
-            info!(" New device found at address {}", address);
+            info!("New device found at address {}", address);
             match device.open() {
                 Ok(handle) => {
                     let serial_number_string_index = device_desc.serial_number_string_index().unwrap();

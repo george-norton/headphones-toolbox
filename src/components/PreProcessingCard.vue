@@ -5,7 +5,7 @@ import { ref } from 'vue'
 export default {
     data() {
         return {
-            preampMarkerLabel: val => `${val}%`
+            preampMarkerLabel: val => `${val}dB`
         }
     },
     props: {
@@ -36,8 +36,8 @@ export default {
                             <q-chip icon="volume_up" class="control-label" color=secondary text-color=white>PreAmp</q-chip>
                         </div>
                         <q-slider :model-value="preamp" @update:model-value="(value) => $emit('update:preamp', value)"
-                            :min="-50" :max="50" :markers="10" :marker-labels="preampMarkerLabel"
-                            :label-value="preamp + '%'" label />
+                            :min="-10" :max="10" :step="0.1" :markers="2" :marker-labels="preampMarkerLabel"
+                            :label-value="preamp + 'dB'" label />
                     </q-item-section>
                 </q-item>
                 <q-checkbox label="Reverse Stereo" :model-value="reverse_stereo"

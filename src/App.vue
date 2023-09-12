@@ -23,6 +23,7 @@ import { save, open } from '@tauri-apps/api/dialog';
 import { resolveResource, join, documentDir, appLogDir } from '@tauri-apps/api/path';
 import { shell } from '@tauri-apps/api';
 import { createDir, readTextFile, writeTextFile, BaseDirectory } from "@tauri-apps/api/fs"
+import semver from 'semver';
 
 const API_VERSION = 3;
 var deviceNames = { "none": "No device detected" }
@@ -46,7 +47,7 @@ export default {
     getVersion().then((version) => this.version = version)
     this.loadState()
     this.pollDevices()
-    window.setInterval(this.pollDevices, 5000)
+    window.setInterval(this.pollDevices, 2000)
   },
   unmounted() {
     this.saveState()
@@ -126,6 +127,13 @@ export default {
       if ("reverseStereo" in config.preprocessing) {
         config.preprocessing.reverse_stereo = config.preprocessing.reverseStereo
         delete config.preprocessing.reverseStereo
+      }
+      console.log(config)
+      console.log(config.version, "0.0.4", semver.lt(config.version, "0.0.4"))
+      if (semver.lt(config.version, "0.0.4")) {
+        // Migrate preamp to db value
+        var preamp = 1 + config.preprocessing.preamp/100;
+        config.preprocessing.preamp = 20.0 * Math.log10(preamp)
       }
     },
     pageHeight(offset) {
@@ -253,6 +261,7 @@ export default {
         var config = JSON.parse(response)
         if (config) {
           for (var c in config.configurations) {
+            config.configurations[c].version = config.version;
             this.migrateConfig(config.configurations[c])
             if (config.configurations[c].id == config.currentConfiguration) {
               this.tab = c

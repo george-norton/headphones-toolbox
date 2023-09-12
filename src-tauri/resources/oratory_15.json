@@ -1,6 +1,6 @@
 {
     "preprocessing": {
-        "preamp": -8,
+        "preamp": -4.1,
         "reverse_stereo": true
     },
     "filters": [
@@ -117,5 +117,5 @@
         "de_emphasis": false
     },
     "name": "Oratory 15",
-    "version": "0.0.2"
+    "version": "0.0.4"
 }
