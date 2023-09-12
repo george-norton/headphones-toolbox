@@ -5,7 +5,7 @@ import { ref } from 'vue'
 export default {
     data() {
         return {
-            preampMarkerLabel: val => `${val}dB`
+            preampMarkerLabel: val => `${Math.round(val * 100) / 100}dB`
         }
     },
     props: {
