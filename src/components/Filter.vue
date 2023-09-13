@@ -51,14 +51,14 @@
                 cut.</q-item-label-->
             </div>
 
-            <q-slider :model-value="db_gain" @update:model-value="(value) => $emit('update:db_gain', value)" :min=-20
-              :max=20 :step=0.01 label :label-value="db_gain + 'db'" />
+            <q-slider :model-value="db_gain" @update:model-value="(value) => $emit('update:db_gain', value)" :min=-25
+              :max=25 :step=0.01 label :label-value="db_gain + 'db'" />
           </q-item-section>
 
           <q-item-section side>
             <q-input type="number" dense hide-bottom-space shadow-text="db" style="width:5em" :model-value="db_gain"
-              @update:model-value="(value) => $emit('update:db_gain', Number(value))" :min=-20 :max=20
-              :rules="[val => (val >= -20 && val <= 20) || 'Gain out of range']" :debounce=1000 />
+              @update:model-value="(value) => $emit('update:db_gain', Number(value))" :min=-25 :max=25
+              :rules="[val => (val >= -25 && val <= 25) || 'Gain out of range']" :debounce=1000 />
           </q-item-section>
         </q-item>
         <q-item>

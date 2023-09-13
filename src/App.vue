@@ -20,10 +20,12 @@ import { invoke } from '@tauri-apps/api'
 import { getVersion } from '@tauri-apps/api/app';
 import debounce from 'lodash.debounce'
 import { save, open } from '@tauri-apps/api/dialog';
-import { resolveResource, join, documentDir } from '@tauri-apps/api/path';
+import { resolveResource, join, documentDir, appLogDir } from '@tauri-apps/api/path';
+import { shell } from '@tauri-apps/api';
 import { createDir, readTextFile, writeTextFile, BaseDirectory } from "@tauri-apps/api/fs"
+import semver from 'semver';
 
-const API_VERSION = 2;
+const API_VERSION = 3;
 var deviceNames = { "none": "No device detected" }
 var deviceListKey = ref(0)
 var popup = ref(undefined)
@@ -45,7 +47,7 @@ export default {
     getVersion().then((version) => this.version = version)
     this.loadState()
     this.pollDevices()
-    window.setInterval(this.pollDevices, 5000)
+    window.setInterval(this.pollDevices, 2000)
   },
   unmounted() {
     this.saveState()
@@ -60,10 +62,10 @@ export default {
         this.sendState()
         invoke("read_version_info").then((version) => {
           this.versions = { ...JSON.parse(version), ...{ "serial_number": this.device, "client_api_version": API_VERSION } }
-          if (version.minimum_supported_version > API_VERSION) {
-            this.$q.notify({ type: 'negative', message: "Fimrware is too new, this version of Ploopy Headphones Toolkit is not supported." })
+          if (this.versions.minimum_supported_version> API_VERSION) {
+            this.$q.notify({ type: 'negative', message: "Firmware is too new, this version of Ploopy Headphones Toolkit is not supported." })
           }
-          else if (API_VERSION > version.current_version) {
+          else if (API_VERSION > this.versions.current_version) {
             this.$q.notify({ type: 'negative', message: "Firmware is too old, this version of Ploopy Headphones Toolkit is not supported." })
           }
           else {
@@ -126,6 +128,13 @@ export default {
         config.preprocessing.reverse_stereo = config.preprocessing.reverseStereo
         delete config.preprocessing.reverseStereo
       }
+      console.log(config)
+      console.log(config.version, "0.0.4", semver.lt(config.version, "0.0.4"))
+      if (semver.lt(config.version, "0.0.4")) {
+        // Migrate preamp to db value
+        var preamp = 1 + config.preprocessing.preamp/100;
+        config.preprocessing.preamp = 20.0 * Math.log10(preamp)
+      }
     },
     pageHeight(offset) {
       const height = offset ? `calc(100vh - ${offset}px)` : '100vh'
@@ -140,10 +149,11 @@ export default {
         this.tabs[this.tab] = config
       })
     },
-    readDefaultConfiguration() {
-      resolveResource('resources/configuration.json').then((configJson) =>
+    readDefaultConfiguration(filename) {
+      resolveResource('resources/'+filename).then((configJson) =>
         readTextFile(configJson).then((defaultConfiguration) => {
           var config = JSON.parse(defaultConfiguration)
+          this.migrateConfig(config)
           config.id = this.tab
           config.name = this.tabs[this.tab].name
           config.state = structuredClone(toRaw(this.tabs[this.tab].state))
@@ -165,15 +175,17 @@ export default {
       }
       invoke("load_config").then((deviceConfig) => {
         var config = JSON.parse(deviceConfig)
+        this.migrateConfig(config)
         config.name = "Unnamed configuration"
         config.id = nextId
         config.state = structuredClone(defaultState)
         this.tabs.push(config)
         this.tab = nextId
       }).catch(err => {
-        resolveResource('resources/configuration.json').then((configJson) =>
+        resolveResource('resources/oratory_15.json').then((configJson) =>
           readTextFile(configJson).then((defaultConfiguration) => {
             var config = JSON.parse(defaultConfiguration)
+            this.migrateConfig(config)
             config.id = nextId
             config.state = structuredClone(defaultState)
             this.tabs.push(config)
@@ -249,6 +261,7 @@ export default {
         var config = JSON.parse(response)
         if (config) {
           for (var c in config.configurations) {
+            config.configurations[c].version = config.version;
             this.migrateConfig(config.configurations[c])
             if (config.configurations[c].id == config.currentConfiguration) {
               this.tab = c
@@ -346,19 +359,19 @@ export default {
     },
     pollDevices() {
       invoke('poll_devices').then((message) => {
-        var devices = JSON.parse(message)
-        for (var d in devices) {
-          if (!(devices[d] in deviceNames)) {
-            if (devices.length == 1 && !("Ploopy Headphones" in deviceNames)) {
+        var status = JSON.parse(message)
+        for (var d in status.device_list) {
+          if (!(status.device_list[d] in deviceNames)) {
+            if (status.device_list.length == 1 && !("Ploopy Headphones" in deviceNames)) {
               // Most people will only have one device, so use a friendly name
-              deviceNames[devices[d]] = "Ploopy Headphones"
+              deviceNames[status.device_list[d]] = "Ploopy Headphones"
             }
             else {
-              deviceNames[devices[d]] = "Headphones [" + devices[d] + "]"
+              deviceNames[status.device_list[d]] = "Headphones [" + status.device_list[d] + "]"
             }
           }
         }
-        Object.assign(this.devices, devices)
+        Object.assign(this.devices, status.device_list)
 
         if ((this.device == undefined || this.device == "none") && this.devices.length > 0) {
           this.device = this.devices[0];
@@ -370,12 +383,17 @@ export default {
             this.connected = false
           }
           else if (this.device != "none") {
-            if (this.connected && (devices.indexOf(this.device) == -1)) {
+            if (this.connected && (this.devices.indexOf(this.device) == -1)) {
               this.$q.notify({ type: 'negative', message: "Device disconnected" })
               this.connected = false
             }
+            else if (status.error) {
+              this.$q.notify({ type: 'negative', message: "Device is in an error state, reconnecting.." })
+              this.connected = false
+              this.openDevice()
+            }
             else if (!this.connected) {
-              if (devices.indexOf(this.device) != -1) {
+              if (this.devices.indexOf(this.device) != -1) {
                 this.openDevice()
               }
             }
@@ -408,7 +426,7 @@ export default {
           </template>
         </q-select>
 
-        <InfoMenuVue :disable="!connected" v-bind:versions="versions" />
+        <InfoMenuVue :disable="!connected" v-bind:versions="versions"/>
         <q-btn flat dense icon="edit" :disable="!connected">
           <q-tooltip>
             Rename this device.
@@ -434,6 +452,9 @@ export default {
                 <q-item-section>Erase saved configuration</q-item-section>
               </q-item>
               <q-separator />
+              <q-item clickable v-close-popup @click="appLogDir().then((logs) => { shell.open(logs+'headphones_toolbox.log') });">
+                <q-item-section>Show log</q-item-section>
+              </q-item>
               <q-item clickable v-close-popup @click="about.show()">
                 <q-item-section>About</q-item-section>
               </q-item>
@@ -486,10 +507,24 @@ export default {
                 </q-item>
                 <q-item clickable v-close-popup :disable="(tab === undefined) || !validated"
                   @click="readDeviceConfiguration()">
-                  <q-item-section>Read config Ffrom device</q-item-section>
+                  <q-item-section>Read config from device</q-item-section>
                 </q-item>
-                <q-item clickable v-close-popup :disable="tab === undefined" @click="readDefaultConfiguration()">
-                  <q-item-section>Reset config to default</q-item-section>
+                <q-item clickable>
+                  <q-item-section>Load EQ preset</q-item-section>
+                    <q-item-section side>
+                    <q-icon name="keyboard_arrow_right" />
+                  </q-item-section>
+                  <q-menu anchor="top end" self="top start">
+                    <q-item clickable v-close-popup :disable="tab === undefined" @click="readDefaultConfiguration('configuration.json')">
+                      <q-item-section>Original EQ</q-item-section>
+                    </q-item>
+                    <q-item clickable v-close-popup :disable="tab === undefined" @click="readDefaultConfiguration('oratory_8.json')">
+                      <q-item-section>Oratory 8 band EQ</q-item-section>
+                    </q-item>
+                    <q-item clickable v-close-popup :disable="tab === undefined" @click="readDefaultConfiguration('oratory_15.json')">
+                      <q-item-section>Oratory 15 band EQ</q-item-section>
+                    </q-item>
+                  </q-menu>
                 </q-item>
               </q-list>
             </q-menu>

@@ -26,7 +26,7 @@ import { getFilterCoefficients } from '@/components/FilterCoefficients.js'
 const audioCtx = new AudioContext()
 const biquadFilter = audioCtx.createBiquadFilter()
 
-const STEPS = 1024;
+const STEPS = 256;
 const frequency = new Float32Array(STEPS)
 var magnitudeSum = new Float32Array(STEPS)
 var magnitude = []
@@ -73,8 +73,8 @@ export default {
               }
               previousConfig[i] = cfg
             }
-            for (var j = 0; j < STEPS; j += 1) {
-              if (config[i].enabled) {
+            if (config[i].enabled) {
+              for (var j = 0; j < STEPS; j += 1) {
                 magnitudeSum[j] += magnitude[i][j]
               }
             }

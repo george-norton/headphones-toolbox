@@ -1,6 +1,5 @@
 {
-    "id": "0",
-    "name": "Unnamed configuration",
+    "name": "Default configuration",
     "filters": [
         {
             "filter_type": "peaking",

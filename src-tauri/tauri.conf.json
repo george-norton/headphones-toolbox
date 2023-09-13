@@ -8,14 +8,14 @@
   },
   "package": {
     "productName": "Ploopy Headphones Toolbox",
-    "version": "0.0.2"
+    "version": "0.0.4"
   },
   "tauri": {
     "allowlist": {
       "all": false,
       "shell": {
         "all": false,
-        "open": true
+        "open": ".*log"
       },
       "dialog": {
         "all": true,
@@ -38,7 +38,7 @@
       },
       "fs": {
         "all": true,
-        "scope": ["$APPDATA/", "$APPDATA/**", "$RESOURCE/resources/*", "**"]
+        "scope": ["$APPDATA/", "$APPDATA/**", "$RESOURCE/resources/*", "**", "$APPLOGDIR/", "$APPLOGDIR/**"]
       },
       "os": {
         "all": true 

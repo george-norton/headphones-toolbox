@@ -11,6 +11,12 @@
             <div class="bold-heading">Device Info</div>
           </template>
         </q-table>
+        <div v-if="this.versions.minimum_supported_version > this.versions.client_api_version" class="q-ma-sm">
+          Firmware is too new, this version of Ploopy Headphones Toolkit is not supported.
+        </div>
+        <div v-if="this.versions.client_api_version > this.versions.current_version" class="q-ma-sm">
+          Firmware is too old, this version of Ploopy Headphones Toolkit is not supported.
+        </div>
       </q-menu>
     </q-btn>
   </div>
