@@ -1,6 +1,7 @@
 {
     "preprocessing": {
         "preamp": -4.1,
+        "postEQGain": 3.0,
         "reverse_stereo": true
     },
     "filters": [
@@ -22,7 +23,7 @@
             "filter_type": "peaking",
             "q": 0.71,
             "f0": 105,
-            "db_gain": 5.5,
+            "db_gain": 2.5,
             "enabled": true
         },
         {
@@ -106,7 +107,7 @@
             "filter_type": "highshelf",
             "q": 0.71,
             "f0": 12000,
-            "db_gain": -6,
+            "db_gain": -3,
             "enabled": true
         }
     ],
@@ -117,5 +118,5 @@
         "de_emphasis": false
     },
     "name": "Oratory 15",
-    "version": "0.0.4"
+    "version": "0.0.5"
 }

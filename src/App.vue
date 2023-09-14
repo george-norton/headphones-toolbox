@@ -25,7 +25,7 @@ import { shell } from '@tauri-apps/api';
 import { createDir, readTextFile, writeTextFile, BaseDirectory } from "@tauri-apps/api/fs"
 import semver from 'semver';
 
-const API_VERSION = 3;
+const API_VERSION = 4;
 var deviceNames = { "none": "No device detected" }
 var deviceListKey = ref(0)
 var popup = ref(undefined)
@@ -215,7 +215,11 @@ export default {
     sendState: debounce(function () {
       if (this.validated && this.tab !== undefined && this.tabs[this.tab] !== undefined) {
         var sendConfig = {
-          "preprocessing": { "preamp": this.tabs[this.tab].preprocessing.preamp, "reverse_stereo": this.tabs[this.tab].preprocessing.reverse_stereo },
+          "preprocessing": { 
+              "preamp": this.tabs[this.tab].preprocessing.preamp, 
+              "postEQGain": this.tabs[this.tab].preprocessing.postEQGain,
+              "reverse_stereo": this.tabs[this.tab].preprocessing.reverse_stereo 
+            },
           "filters": this.tabs[this.tab].filters,
           "codec": this.tabs[this.tab].codec
         }
@@ -437,7 +441,7 @@ export default {
           </q-popup-edit>
         </q-btn>
         <q-space />
-        <q-btn flat dense icon="save_alt" :disable="!validated" @click="invoke('save_config')">
+        <q-btn flat dense icon="save_alt" :disable="validated" @click="invoke('save_config')">
           <q-tooltip>
             Persist the current configuration to flash memory on the DAC.
           </q-tooltip>
@@ -515,12 +519,6 @@ export default {
                     <q-icon name="keyboard_arrow_right" />
                   </q-item-section>
                   <q-menu anchor="top end" self="top start">
-                    <q-item clickable v-close-popup :disable="tab === undefined" @click="readDefaultConfiguration('configuration.json')">
-                      <q-item-section>Original EQ</q-item-section>
-                    </q-item>
-                    <q-item clickable v-close-popup :disable="tab === undefined" @click="readDefaultConfiguration('oratory_8.json')">
-                      <q-item-section>Oratory 8 band EQ</q-item-section>
-                    </q-item>
                     <q-item clickable v-close-popup :disable="tab === undefined" @click="readDefaultConfiguration('oratory_15.json')">
                       <q-item-section>Oratory 15 band EQ</q-item-section>
                     </q-item>
@@ -534,8 +532,12 @@ export default {
         <q-tab-panels v-model="tab" animated>
           <q-tab-panel v-for="t in tabs" :name="t.id" class="panel">
             <div class="column q-gutter-md q-ma-none">
-              <PreProcessingCardVue v-model:preamp="t.preprocessing.preamp"
-                v-model:reverse_stereo="t.preprocessing.reverse_stereo" v-model:expansion="t.state.expanded[0]" />
+              <PreProcessingCardVue 
+                v-model:preamp="t.preprocessing.preamp"
+                v-model:postEQGain="t.preprocessing.postEQGain"
+                v-model:reverse_stereo="t.preprocessing.reverse_stereo" 
+                v-model:expansion="t.state.expanded[0]" 
+              />
               <FilterCardVue v-model:filters="t.filters" v-model:expansion="t.state.expanded[1]" />
               <CodecCardVue v-model:oversampling="t.codec.oversampling" v-model:phase="t.codec.phase"
                 v-model:rolloff="t.codec.rolloff" v-model:de_emphasis="t.codec.de_emphasis"
