@@ -128,8 +128,9 @@ export default {
         config.preprocessing.reverse_stereo = config.preprocessing.reverseStereo
         delete config.preprocessing.reverseStereo
       }
-      console.log(config)
-      console.log(config.version, "0.0.4", semver.lt(config.version, "0.0.4"))
+      if (!("postEQGain" in config.preprocessing)) {
+        config.preprocessing.postEQGain = 0;
+      }
       if (semver.lt(config.version, "0.0.4")) {
         // Migrate preamp to db value
         var preamp = 1 + config.preprocessing.preamp/100;
