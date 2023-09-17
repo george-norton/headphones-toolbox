@@ -441,7 +441,7 @@ export default {
           </q-popup-edit>
         </q-btn>
         <q-space />
-        <q-btn flat dense icon="save_alt" :disable="validated" @click="invoke('save_config')">
+        <q-btn flat dense icon="save_alt" :disable="!validated" @click="invoke('save_config')">
           <q-tooltip>
             Persist the current configuration to flash memory on the DAC.
           </q-tooltip>
