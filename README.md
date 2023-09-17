@@ -64,3 +64,22 @@ yarn install
 yarn tauri dev
 ```
 Once started the application will automatically update when you change the code.
+
+### Windows Development Environment Setup
+
+The Windows dev environment setup is a little more involved, and consists of the following steps:
+
+1) Install node.js from here: https://nodejs.org/en
+2) When prompted in the installer, allow it to install the "additional dev tools", which will open a PowerShell script and do stuff for a while.
+3) Install Yarn, using the instructions found here: https://yarnpkg.com/getting-started/install
+4) Open a Node.js command prompt and navigate to the headphones-toolbox repo directory. You should be able to successfully run yarn install now.
+5) Follow the instructions at https://tauri.app/v1/guides/getting-started/prerequisites/ to install Rust.
+6) Open a Node.js command prompt; you can find this in your start menu, in the Node.js folder. Navigate to the source repository directory and run the following commands:
+```
+yarn install
+yarn tauri dev
+```
+8) To build the app into an installer, use the command:
+```
+yarn tauri build
+```

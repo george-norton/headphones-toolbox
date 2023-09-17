@@ -176,6 +176,7 @@ struct Filter {
 #[derive(Serialize, Deserialize, Default)]
 struct Preprocessing {
     preamp: f32,
+    postEQGain: f32,
     reverse_stereo: bool
 }
 
@@ -304,9 +305,18 @@ fn write_config(config: &str, connection_state: State<'_, Mutex<ConnectionState>
                     }
                 }
             }
-            // -1.0 as the firmware adds 1, cleanup later
+            // TODO: -1.0 as the firmware adds 1, cleanup later. Consider storing this value without the subtraction 
+            // to eliminate a math op and make the code more grokable?
+            //preprocessing_payload.extend_from_slice(&(f32::powf(10.0, cfg.preprocessing.preamp/20.0) - 1.0).to_le_bytes());
             preprocessing_payload.extend_from_slice(&(f32::powf(10.0, cfg.preprocessing.preamp/20.0) - 1.0).to_le_bytes());
+
+            /* Send the post-EQ gain value from the UI. */
+            preprocessing_payload.extend_from_slice(&(f32::powf(10.0, cfg.preprocessing.postEQGain/20.0) - 1.0).to_le_bytes());            
+
             preprocessing_payload.push(cfg.preprocessing.reverse_stereo as u8);
+
+
+
             preprocessing_payload.extend_from_slice(&[0u8; 3]);
 
             codec_payload.push(cfg.codec.oversampling as u8);
@@ -379,6 +389,10 @@ fn load_config(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<St
                         // +1 to maintain compatability with old firmwares
                         let preamp = cur.read_f32::<LittleEndian>().unwrap() + 1.0;
                         cfg.preprocessing.preamp = preamp.log10() * 20.0;
+
+                        let postEQGain = cur.read_f32::<LittleEndian>().unwrap() + 1.0;
+                        cfg.preprocessing.postEQGain = postEQGain.log10() * 20.0;
+
                         cfg.preprocessing.reverse_stereo = cur.read_u8().unwrap() != 0;
                         cur.seek(SeekFrom::Current(3)); // reserved bytes
                     },

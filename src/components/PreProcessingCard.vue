@@ -1,25 +1,26 @@
-
 <script>
 import { ref } from 'vue'
 
 export default {
     data() {
         return {
-            preampMarkerLabel: val => `${Math.round(val * 100) / 100}dB`
+            preampMarkerLabel: val => `${Math.round(val * 100) / 100}dB`,
+            postEQGainMarkerLabel: val => `${Math.round(val * 100) / 100}dB`
         }
     },
     props: {
         preamp: ref(0),
+        postEQGain: ref(0),
         reverse_stereo: ref(false),
         expansion: ref(Boolean)
     },
-    emits: ['update:preamp', 'update:reverse_stereo', 'update:expansion']
+    emits: ['update:preamp', 'update:postEQGain', 'update:reverse_stereo', 'update:expansion']
 }
 </script>
 <template>
     <q-card flat bordered class="q-mx-none">
         <q-expansion-item default-opened expand-separator :model-value="expansion"
-            @update:model-value="(value) => $emit('update:expansion', value)" label="Input preprocessing"
+            @update:model-value="(value) => $emit('update:expansion', value)" label="Pre- and Post-Processing"
             header-class="title-bar-lv1">
             <q-card-section class="q-pb-none">
                 <div class="info-box">
@@ -33,11 +34,21 @@ export default {
                 <q-item>
                     <q-item-section>
                         <div class="row justify-start items-center q-gutter-sm">
-                            <q-chip icon="volume_up" class="control-label" color=secondary text-color=white>PreAmp</q-chip>
+                            <q-chip icon="volume_down" class="control-label" color=secondary text-color=white>Pre-EQ Gain</q-chip>
                         </div>
                         <q-slider :model-value="preamp" @update:model-value="(value) => $emit('update:preamp', value)"
-                            :min="-10" :max="10" :step="0.1" :markers="2" :marker-labels="preampMarkerLabel"
+                            :min="-12" :max="6" :step="0.1" :markers="3" :marker-labels="preampMarkerLabel"
                             :label-value="preamp + 'dB'" label />
+                    </q-item-section>
+                </q-item>
+                <q-item>
+                    <q-item-section>
+                        <div class="row justify-start items-center q-gutter-sm">
+                            <q-chip icon="volume_up" class="control-label" color=secondary text-color=white>Post-EQ Gain</q-chip>
+                        </div>
+                        <q-slider :model-value="postEQGain" @update:model-value="(value) => $emit('update:postEQGain', value)"
+                            :min="0" :max="9" :step="0.1" :markers="3" :marker-labels="postEQGainMarkerLabel"
+                            :label-value="postEQGain + 'dB'" label />
                     </q-item-section>
                 </q-item>
                 <q-checkbox label="Reverse Stereo" :model-value="reverse_stereo"
