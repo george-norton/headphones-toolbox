@@ -32,21 +32,11 @@ pub const LIBUSB_REQUEST_TYPE_VENDOR: u8 = 0x02 << 5;
 pub const USB_TIMEOUT: Duration = Duration::from_millis(250);
 const MAX_CFG_LEN: usize = 512;
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct ConnectionState {
     serial_numbers: HashMap<u16, String>, // Maps addresses to serial numbers
     connected: Option<ConnectedDevice>,
     error: bool,
-}
-
-impl ConnectionState {
-    fn new() -> ConnectionState {
-        ConnectionState {
-            serial_numbers: HashMap::new(),
-            connected: None,
-            error: false,
-        }
-    }
 }
 
 #[derive(Debug)]
@@ -845,7 +835,7 @@ fn main() {
             info!("Headphones Toolbox Started");
             Ok(())
         })
-        .manage(Mutex::new(ConnectionState::new()))
+        .manage(Mutex::new(ConnectionState::default()))
         .invoke_handler(tauri::generate_handler![
             reboot_bootloader,
             poll_devices,
