@@ -42,7 +42,7 @@ pub struct ConnectionState {
 #[derive(Debug)]
 pub struct ConnectedDevice {
     device_handle: DeviceHandle<rusb::Context>,
-    configuration_interface: Option<ConfigurationInterface>,
+    configuration_interface: ConfigurationInterface,
 }
 
 #[derive(Debug)]
@@ -291,13 +291,7 @@ fn send_cmd(
         }
     };
 
-    let interface = match &device.configuration_interface {
-        Some(x) => x,
-        None => {
-            warn!("No configuration interface, update your headphones firmware");
-            return Err("No configuration interface");
-        }
-    };
+    let interface = &device.configuration_interface;
 
     //println!("Write {} bytes to {}", buf.len(), interface.output);
     match device
@@ -686,22 +680,23 @@ fn open(serial_number: &str, connection_state: State<Mutex<ConnectionState>>) ->
                     match device.open() {
                         Ok(mut handle) => {
                             let configuration_interface = find_configuration_endpoints(&device);
-                            match &configuration_interface {
+                            let interface = match configuration_interface {
                                 Some(i) => {
                                     handle.claim_interface(i.interface).unwrap();
+                                    i
                                 }
                                 None => {
                                     println!("Could not detect a configuration interface");
                                     return false;
                                 }
-                            }
+                            };
                             info!(
                                 "Opened the device at address {}, with serial number {}",
                                 address, sn
                             );
                             connection.connected = Some(ConnectedDevice {
                                 device_handle: handle,
-                                configuration_interface: configuration_interface,
+                                configuration_interface: interface,
                             });
                             return true;
                         }
