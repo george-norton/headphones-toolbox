@@ -342,8 +342,6 @@ fn write_config(
     config: &str,
     connection_state: State<'_, Mutex<ConnectionState>>,
 ) -> Result<bool, ()> {
-    let mut filter_payload: Vec<u8> = Vec::new();
-
     let cfg = match serde_json::from_str::<Config>(config) {
         Ok(x) => x,
         Err(e) => {
@@ -353,70 +351,69 @@ fn write_config(
         }
     };
 
-    for filter in cfg.filters.iter() {
-        if filter.enabled {
-            let filter_type_val: u8;
-            let filter_args;
+    let mut filter_payload: Vec<u8> = Vec::new();
+    for filter in cfg.filters.iter().filter(|f| f.enabled) {
+        let filter_type_val: u8;
+        let filter_args;
 
-            match filter.filter_type.as_str() {
-                "lowpass" => {
-                    filter_type_val = 0;
-                    filter_args = 2;
-                }
-                "highpass" => {
-                    filter_type_val = 1;
-                    filter_args = 2;
-                }
-                "bandpass_skirt" => {
-                    filter_type_val = 2;
-                    filter_args = 2;
-                }
-                "bandpass" | "bandpass_peak" => {
-                    filter_type_val = 3;
-                    filter_args = 2;
-                }
-                "notch" => {
-                    filter_type_val = 4;
-                    filter_args = 2;
-                }
-                "allpass" => {
-                    filter_type_val = 5;
-                    filter_args = 2;
-                }
-                "peaking" => {
-                    filter_type_val = 6;
-                    filter_args = 3;
-                }
-                "lowshelf" => {
-                    filter_type_val = 7;
-                    filter_args = 3;
-                }
-                "highshelf" => {
-                    filter_type_val = 8;
-                    filter_args = 3;
-                }
-                "custom_iir" => {
-                    filter_type_val = 9;
-                    filter_args = 6;
-                }
-                _ => return Ok(false),
+        match filter.filter_type.as_str() {
+            "lowpass" => {
+                filter_type_val = 0;
+                filter_args = 2;
             }
-            filter_payload.push(filter_type_val);
-            filter_payload.extend_from_slice(&[0u8; 3]);
-            if filter_type_val == FilterType::CustomIIR as u8 {
-                filter_payload.extend_from_slice(&filter.a0.to_le_bytes());
-                filter_payload.extend_from_slice(&filter.a1.to_le_bytes());
-                filter_payload.extend_from_slice(&filter.a2.to_le_bytes());
-                filter_payload.extend_from_slice(&filter.b0.to_le_bytes());
-                filter_payload.extend_from_slice(&filter.b1.to_le_bytes());
-                filter_payload.extend_from_slice(&filter.b2.to_le_bytes());
-            } else {
-                filter_payload.extend_from_slice(&filter.f0.to_le_bytes());
-                if filter_args == 3 {
-                    filter_payload.extend_from_slice(&filter.db_gain.to_le_bytes());
-                }
-                filter_payload.extend_from_slice(&filter.q.to_le_bytes());
+            "highpass" => {
+                filter_type_val = 1;
+                filter_args = 2;
             }
+            "bandpass_skirt" => {
+                filter_type_val = 2;
+                filter_args = 2;
+            }
+            "bandpass" | "bandpass_peak" => {
+                filter_type_val = 3;
+                filter_args = 2;
+            }
+            "notch" => {
+                filter_type_val = 4;
+                filter_args = 2;
+            }
+            "allpass" => {
+                filter_type_val = 5;
+                filter_args = 2;
+            }
+            "peaking" => {
+                filter_type_val = 6;
+                filter_args = 3;
+            }
+            "lowshelf" => {
+                filter_type_val = 7;
+                filter_args = 3;
+            }
+            "highshelf" => {
+                filter_type_val = 8;
+                filter_args = 3;
+            }
+            "custom_iir" => {
+                filter_type_val = 9;
+                filter_args = 6;
+            }
+            _ => return Ok(false),
+        }
+        filter_payload.push(filter_type_val);
+        filter_payload.extend_from_slice(&[0u8; 3]);
+        if filter_type_val == FilterType::CustomIIR as u8 {
+            filter_payload.extend_from_slice(&filter.a0.to_le_bytes());
+            filter_payload.extend_from_slice(&filter.a1.to_le_bytes());
+            filter_payload.extend_from_slice(&filter.a2.to_le_bytes());
+            filter_payload.extend_from_slice(&filter.b0.to_le_bytes());
+            filter_payload.extend_from_slice(&filter.b1.to_le_bytes());
+            filter_payload.extend_from_slice(&filter.b2.to_le_bytes());
+        } else {
+            filter_payload.extend_from_slice(&filter.f0.to_le_bytes());
+            if filter_args == 3 {
+                filter_payload.extend_from_slice(&filter.db_gain.to_le_bytes());
+            }
+            filter_payload.extend_from_slice(&filter.q.to_le_bytes());
         }
     }
 
