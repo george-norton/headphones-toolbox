@@ -205,58 +205,59 @@ struct VersionInfo {
 
 fn send_cmd(connection_state: State<'_, Mutex<ConnectionState>>, buf: &[u8]) -> Result<[u8; MAX_CFG_LEN], &'static str> {
     let mut connection = connection_state.lock().unwrap();
-    match &connection.connected {
-        Some(device) => {
-            match &device.configuration_interface {
-                Some(interface) => {
-                    //println!("Write {} bytes to {}", buf.len(), interface.output);
-                    match device.device_handle.write_bulk(interface.output, &buf, USB_TIMEOUT) {
-                        Ok(_len) => (),
-                        Err(err) => {
-                            error!("Failed to write to the configuration interface: {}", err);
-                            connection.error = true;
-                            return Err("Failed to write to the configuration interface");
-                        }
-                    }
 
-                    let mut result = [0; MAX_CFG_LEN];
-                    let mut read_length : u16 = 0;
-                    let mut length : u16 = 4;
-                    while read_length < length {
-                        match device.device_handle.read_bulk(interface.input, &mut result, USB_TIMEOUT) {
-                            Ok(len) => { 
-                                //println!("Read {} {}/{}", len, read_length, length);
-                                if read_length < 4 && len >=4 {
-                                    let length_bytes : [u8; 2] = result[2..4].try_into().unwrap();
-                                    length = u16::from_le_bytes(length_bytes);
-                                    //println!("Length: {}", length);
-                                    if usize::from(length) > MAX_CFG_LEN {
-                                        error!("Overflow reading from the config interface, got {} bytes, max size is {} bytes.", length, MAX_CFG_LEN);
-                                        return Err("Overflow error");
-                                    }
-                                }
-                                read_length += len as u16;
-                            },
-                            Err(err) => { 
-                                error!("Error reading from the configuration inteface: {}", err);
-                                connection.error = true;
-                                return Err("Read Error");
-                            }
-                        }
-                    }
-                    return Ok(result);
-                },
-                None => {
-                    warn!("No configuration interface, update your headphones firmware");
-                    return Err("No configuration interface");
-                }
-            }
-        },
+    let device = match &connection.connected {
+        Some(x) => x,
         None => {
             info!("The device is not connected.");
             return Err("Not connected");
         }
+    };
+
+    let interface = match &device.configuration_interface {
+        Some(x) => x,
+        None => {
+            warn!("No configuration interface, update your headphones firmware");
+            return Err("No configuration interface");
+        }
+    };
+
+    //println!("Write {} bytes to {}", buf.len(), interface.output);
+    match device.device_handle.write_bulk(interface.output, &buf, USB_TIMEOUT) {
+        Ok(_len) => (),
+        Err(err) => {
+            error!("Failed to write to the configuration interface: {}", err);
+            connection.error = true;
+            return Err("Failed to write to the configuration interface");
+        }
     }
+
+    let mut result = [0; MAX_CFG_LEN];
+    let mut read_length : u16 = 0;
+    let mut length : u16 = 4;
+    while read_length < length {
+        match device.device_handle.read_bulk(interface.input, &mut result, USB_TIMEOUT) {
+            Ok(len) => { 
+                //println!("Read {} {}/{}", len, read_length, length);
+                if read_length < 4 && len >=4 {
+                    let length_bytes : [u8; 2] = result[2..4].try_into().unwrap();
+                    length = u16::from_le_bytes(length_bytes);
+                    //println!("Length: {}", length);
+                    if usize::from(length) > MAX_CFG_LEN {
+                        error!("Overflow reading from the config interface, got {} bytes, max size is {} bytes.", length, MAX_CFG_LEN);
+                        return Err("Overflow error");
+                    }
+                }
+                read_length += len as u16;
+            },
+            Err(err) => { 
+                error!("Error reading from the configuration inteface: {}", err);
+                connection.error = true;
+                return Err("Read Error");
+            }
+        }
+    }
+    Ok(result)
 }
 
 #[tauri::command]
@@ -264,72 +265,73 @@ fn write_config(config: &str, connection_state: State<'_, Mutex<ConnectionState>
     let mut filter_payload : Vec<u8> = Vec::new();
     let mut preprocessing_payload : Vec<u8> = Vec::new();
     let mut codec_payload : Vec<u8> = Vec::new();
-    match serde_json::from_str::<Config>(config) {
-        Ok(cfg) => {
-            for filter in cfg.filters.iter() {
-                if filter.enabled {
-                    let filter_type_val : u8;
-                    let filter_args;
 
-                    match filter.filter_type.as_str() {
-                        "lowpass" => { filter_type_val = 0; filter_args = 2; },
-                        "highpass" => { filter_type_val = 1; filter_args = 2; },
-                        "bandpass_skirt" => { filter_type_val = 2; filter_args = 2; },
-                        "bandpass" | "bandpass_peak" => { filter_type_val = 3; filter_args = 2; },
-                        "notch" => { filter_type_val = 4; filter_args = 2; },
-                        "allpass" => { filter_type_val = 5; filter_args = 2; },
-                        "peaking" => { filter_type_val = 6; filter_args = 3; },
-                        "lowshelf" => { filter_type_val = 7; filter_args = 3; },
-                        "highshelf" => { filter_type_val = 8; filter_args = 3; },
-                        "custom_iir" => { filter_type_val = 9; filter_args = 6; },
-                        _ => return Ok(false)
-                    }
-                    filter_payload.push(filter_type_val);
-                    filter_payload.extend_from_slice(&[0u8; 3]);
-                    if filter_type_val == FilterType::CustomIIR as u8
-                    {
-                        filter_payload.extend_from_slice(&filter.a0.to_le_bytes());
-                        filter_payload.extend_from_slice(&filter.a1.to_le_bytes());
-                        filter_payload.extend_from_slice(&filter.a2.to_le_bytes());
-                        filter_payload.extend_from_slice(&filter.b0.to_le_bytes());
-                        filter_payload.extend_from_slice(&filter.b1.to_le_bytes());
-                        filter_payload.extend_from_slice(&filter.b2.to_le_bytes());
-                    }
-                    else
-                    {
-                        filter_payload.extend_from_slice(&filter.f0.to_le_bytes());
-                        if filter_args == 3 {
-                            filter_payload.extend_from_slice(&filter.db_gain.to_le_bytes());
-                        }
-                        filter_payload.extend_from_slice(&filter.q.to_le_bytes());
-                    }
-                }
-            }
-            // TODO: -1.0 as the firmware adds 1, cleanup later. Consider storing this value without the subtraction 
-            // to eliminate a math op and make the code more grokable?
-            //preprocessing_payload.extend_from_slice(&(f32::powf(10.0, cfg.preprocessing.preamp/20.0) - 1.0).to_le_bytes());
-            preprocessing_payload.extend_from_slice(&(f32::powf(10.0, cfg.preprocessing.preamp/20.0) - 1.0).to_le_bytes());
-
-            /* Send the post-EQ gain value from the UI. */
-            preprocessing_payload.extend_from_slice(&(f32::powf(10.0, cfg.preprocessing.postEQGain/20.0) - 1.0).to_le_bytes());            
-
-            preprocessing_payload.push(cfg.preprocessing.reverse_stereo as u8);
-
-
-
-            preprocessing_payload.extend_from_slice(&[0u8; 3]);
-
-            codec_payload.push(cfg.codec.oversampling as u8);
-            codec_payload.push(cfg.codec.phase as u8);
-            codec_payload.push(cfg.codec.rolloff as u8);
-            codec_payload.push(cfg.codec.de_emphasis as u8);
-        },
+    let cfg = match serde_json::from_str::<Config>(config) {
+        Ok(x) => x,
         Err(e) => {
             error!("Error serializing config: {}", e);
             info!("{}", config);
             return Ok(false);
         }
+    };
+
+    for filter in cfg.filters.iter() {
+        if filter.enabled {
+            let filter_type_val : u8;
+            let filter_args;
+
+            match filter.filter_type.as_str() {
+                "lowpass" => { filter_type_val = 0; filter_args = 2; },
+                "highpass" => { filter_type_val = 1; filter_args = 2; },
+                "bandpass_skirt" => { filter_type_val = 2; filter_args = 2; },
+                "bandpass" | "bandpass_peak" => { filter_type_val = 3; filter_args = 2; },
+                "notch" => { filter_type_val = 4; filter_args = 2; },
+                "allpass" => { filter_type_val = 5; filter_args = 2; },
+                "peaking" => { filter_type_val = 6; filter_args = 3; },
+                "lowshelf" => { filter_type_val = 7; filter_args = 3; },
+                "highshelf" => { filter_type_val = 8; filter_args = 3; },
+                "custom_iir" => { filter_type_val = 9; filter_args = 6; },
+                _ => return Ok(false)
+            }
+            filter_payload.push(filter_type_val);
+            filter_payload.extend_from_slice(&[0u8; 3]);
+            if filter_type_val == FilterType::CustomIIR as u8
+            {
+                filter_payload.extend_from_slice(&filter.a0.to_le_bytes());
+                filter_payload.extend_from_slice(&filter.a1.to_le_bytes());
+                filter_payload.extend_from_slice(&filter.a2.to_le_bytes());
+                filter_payload.extend_from_slice(&filter.b0.to_le_bytes());
+                filter_payload.extend_from_slice(&filter.b1.to_le_bytes());
+                filter_payload.extend_from_slice(&filter.b2.to_le_bytes());
+            }
+            else
+            {
+                filter_payload.extend_from_slice(&filter.f0.to_le_bytes());
+                if filter_args == 3 {
+                    filter_payload.extend_from_slice(&filter.db_gain.to_le_bytes());
+                }
+                filter_payload.extend_from_slice(&filter.q.to_le_bytes());
+            }
+        }
     }
+    // TODO: -1.0 as the firmware adds 1, cleanup later. Consider storing this value without the subtraction 
+    // to eliminate a math op and make the code more grokable?
+    //preprocessing_payload.extend_from_slice(&(f32::powf(10.0, cfg.preprocessing.preamp/20.0) - 1.0).to_le_bytes());
+    preprocessing_payload.extend_from_slice(&(f32::powf(10.0, cfg.preprocessing.preamp/20.0) - 1.0).to_le_bytes());
+
+    /* Send the post-EQ gain value from the UI. */
+    preprocessing_payload.extend_from_slice(&(f32::powf(10.0, cfg.preprocessing.postEQGain/20.0) - 1.0).to_le_bytes());            
+
+    preprocessing_payload.push(cfg.preprocessing.reverse_stereo as u8);
+
+
+
+    preprocessing_payload.extend_from_slice(&[0u8; 3]);
+
+    codec_payload.push(cfg.codec.oversampling as u8);
+    codec_payload.push(cfg.codec.phase as u8);
+    codec_payload.push(cfg.codec.rolloff as u8);
+    codec_payload.push(cfg.codec.de_emphasis as u8);
 
     let mut buf : Vec<u8> = Vec::new();
     buf.extend_from_slice(&(StructureTypes::SetConfiguration as u16).to_le_bytes());
@@ -374,96 +376,97 @@ fn load_config(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<St
     buf.extend_from_slice(&(StructureTypes::GetStoredConfiguration as u16).to_le_bytes());
     buf.extend_from_slice(&(4u16).to_le_bytes());
 
-    match &send_cmd(connection_state, &buf) {
-        Ok(cfg) => {
-            let mut cur = Cursor::new(cfg);
-            let _result_type_val = cur.read_u16::<LittleEndian>().unwrap();
-            let result_length_val = cur.read_u16::<LittleEndian>().unwrap();
-            let mut position = 4;
-            let mut cfg : Config = Default::default();
-            while position < result_length_val {
-                let type_val = cur.read_u16::<LittleEndian>().unwrap();
-                let length_val = cur.read_u16::<LittleEndian>().unwrap();
-                match type_val{
-                    x if x == StructureTypes::PreProcessingConfiguration as u16 => {
-                        // +1 to maintain compatability with old firmwares
-                        let preamp = cur.read_f32::<LittleEndian>().unwrap() + 1.0;
-                        cfg.preprocessing.preamp = preamp.log10() * 20.0;
-
-                        let postEQGain = cur.read_f32::<LittleEndian>().unwrap() + 1.0;
-                        cfg.preprocessing.postEQGain = postEQGain.log10() * 20.0;
-
-                        cfg.preprocessing.reverse_stereo = cur.read_u8().unwrap() != 0;
-                        cur.seek(SeekFrom::Current(3)); // reserved bytes
-                    },
-                    x if x == StructureTypes::FilterConfiguration as u16 => {
-                        let end = cur.position() + (length_val-4) as u64;
-                        while cur.position() < end {
-                            let filter_type = cur.read_u8().unwrap();
-                            cur.seek(SeekFrom::Current(3)); // reserved bytes
-                            let filter_args;
-
-                            let mut filter : Filter = Default::default();
-                            filter.enabled = true;
-                            match filter_type {
-                                x if x == FilterType::Lowpass as u8 => { filter.filter_type = "lowpass".to_string(); filter_args = 2; },
-                                x if x == FilterType::Highpass as u8 => { filter.filter_type = "highpass".to_string(); filter_args = 2; },
-                                x if x == FilterType::BandpassSkirt as u8 => { filter.filter_type = "bandpass_skirt".to_string(); filter_args = 2; },
-                                x if x == FilterType::BandpassPeak as u8 => { filter.filter_type = "bandpass_peak".to_string(); filter_args = 2; },
-                                x if x == FilterType::Notch as u8 => { filter.filter_type = "notch".to_string(); filter_args = 2; },
-                                x if x == FilterType::Allpass as u8 => { filter.filter_type = "allpass".to_string(); filter_args = 2; },
-                                x if x == FilterType::Peaking as u8 => { filter.filter_type = "peaking".to_string(); filter_args = 3; },
-                                x if x == FilterType::LowShelf as u8 => { filter.filter_type = "lowshelf".to_string(); filter_args = 3; },
-                                x if x == FilterType::HighShelf as u8 => { filter.filter_type = "highshelf".to_string(); filter_args = 3; },
-                                x if x == FilterType::CustomIIR as u8 => { filter.filter_type = "custom_iir".to_string(); filter_args = 6; },
-                                _ => return { error!("Unknown filter type {}", filter_type); Err(()) }
-                            }
-
-                            if filter_type == FilterType::CustomIIR as u8 {
-                                filter.a0 = cur.read_f64::<LittleEndian>().unwrap();
-                                filter.a1 = cur.read_f64::<LittleEndian>().unwrap();
-                                filter.a2 = cur.read_f64::<LittleEndian>().unwrap();
-                                filter.b0 = cur.read_f64::<LittleEndian>().unwrap();
-                                filter.b1 = cur.read_f64::<LittleEndian>().unwrap();
-                                filter.b2 = cur.read_f64::<LittleEndian>().unwrap();
-                            }
-                            else {
-                                filter.f0 = cur.read_f32::<LittleEndian>().unwrap();
-                                filter.db_gain;
-                                if filter_args == 3 {
-                                    filter.db_gain = cur.read_f32::<LittleEndian>().unwrap();
-                                }
-                                filter.q = cur.read_f32::<LittleEndian>().unwrap();
-                            }
-                            cfg.filters.push(filter)
-                        }
-
-                        if cur.position() != end {
-                            error!("Read off the end of the filters TLV");
-                            return Err(())
-                        }
-                    },
-                    x if x == StructureTypes::Pcm3060Configuration as u16 => {
-                        cfg.codec.oversampling = cur.read_u8().unwrap() != 0;
-                        cfg.codec.phase = cur.read_u8().unwrap() != 0;
-                        cfg.codec.rolloff = cur.read_u8().unwrap() != 0;
-                        cfg.codec.de_emphasis = cur.read_u8().unwrap() != 0;
-                    },
-                    _ => {
-                        warn!("Unsupported TLV type {}", type_val);
-                    }
-                }
-                //println!("\tT: {} L: {}", type_val, length_val);
-                position += length_val;
-                cur.set_position(position as u64);
-            }
-            return Ok(serde_json::to_string(&cfg).unwrap())
-        }, // TODO: Check for NOK
-        Err(e) => {
+    let binding = send_cmd(connection_state, &buf);
+    let cfg = match &binding {
+        Ok(x) => x,
+        Err(e) => {  // TODO: Check for NOK
             error!("Error reading config: {}", e);
             return Err(())
         }
+    };
+
+    let mut cur = Cursor::new(cfg);
+    let _result_type_val = cur.read_u16::<LittleEndian>().unwrap();
+    let result_length_val = cur.read_u16::<LittleEndian>().unwrap();
+    let mut position = 4;
+    let mut cfg : Config = Default::default();
+    while position < result_length_val {
+        let type_val = cur.read_u16::<LittleEndian>().unwrap();
+        let length_val = cur.read_u16::<LittleEndian>().unwrap();
+        match type_val {
+            x if x == StructureTypes::PreProcessingConfiguration as u16 => {
+                // +1 to maintain compatability with old firmwares
+                let preamp = cur.read_f32::<LittleEndian>().unwrap() + 1.0;
+                cfg.preprocessing.preamp = preamp.log10() * 20.0;
+
+                let postEQGain = cur.read_f32::<LittleEndian>().unwrap() + 1.0;
+                cfg.preprocessing.postEQGain = postEQGain.log10() * 20.0;
+
+                cfg.preprocessing.reverse_stereo = cur.read_u8().unwrap() != 0;
+                cur.seek(SeekFrom::Current(3)); // reserved bytes
+            },
+            x if x == StructureTypes::FilterConfiguration as u16 => {
+                let end = cur.position() + (length_val-4) as u64;
+                while cur.position() < end {
+                    let filter_type = cur.read_u8().unwrap();
+                    cur.seek(SeekFrom::Current(3)); // reserved bytes
+                    let filter_args;
+
+                    let mut filter : Filter = Default::default();
+                    filter.enabled = true;
+                    match filter_type {
+                        x if x == FilterType::Lowpass as u8 => { filter.filter_type = "lowpass".to_string(); filter_args = 2; },
+                        x if x == FilterType::Highpass as u8 => { filter.filter_type = "highpass".to_string(); filter_args = 2; },
+                        x if x == FilterType::BandpassSkirt as u8 => { filter.filter_type = "bandpass_skirt".to_string(); filter_args = 2; },
+                        x if x == FilterType::BandpassPeak as u8 => { filter.filter_type = "bandpass_peak".to_string(); filter_args = 2; },
+                        x if x == FilterType::Notch as u8 => { filter.filter_type = "notch".to_string(); filter_args = 2; },
+                        x if x == FilterType::Allpass as u8 => { filter.filter_type = "allpass".to_string(); filter_args = 2; },
+                        x if x == FilterType::Peaking as u8 => { filter.filter_type = "peaking".to_string(); filter_args = 3; },
+                        x if x == FilterType::LowShelf as u8 => { filter.filter_type = "lowshelf".to_string(); filter_args = 3; },
+                        x if x == FilterType::HighShelf as u8 => { filter.filter_type = "highshelf".to_string(); filter_args = 3; },
+                        x if x == FilterType::CustomIIR as u8 => { filter.filter_type = "custom_iir".to_string(); filter_args = 6; },
+                        _ => return { error!("Unknown filter type {}", filter_type); Err(()) }
+                    }
+
+                    if filter_type == FilterType::CustomIIR as u8 {
+                        filter.a0 = cur.read_f64::<LittleEndian>().unwrap();
+                        filter.a1 = cur.read_f64::<LittleEndian>().unwrap();
+                        filter.a2 = cur.read_f64::<LittleEndian>().unwrap();
+                        filter.b0 = cur.read_f64::<LittleEndian>().unwrap();
+                        filter.b1 = cur.read_f64::<LittleEndian>().unwrap();
+                        filter.b2 = cur.read_f64::<LittleEndian>().unwrap();
+                    }
+                    else {
+                        filter.f0 = cur.read_f32::<LittleEndian>().unwrap();
+                        filter.db_gain;
+                        if filter_args == 3 {
+                            filter.db_gain = cur.read_f32::<LittleEndian>().unwrap();
+                        }
+                        filter.q = cur.read_f32::<LittleEndian>().unwrap();
+                    }
+                    cfg.filters.push(filter)
+                }
+
+                if cur.position() != end {
+                    error!("Read off the end of the filters TLV");
+                    return Err(())
+                }
+            },
+            x if x == StructureTypes::Pcm3060Configuration as u16 => {
+                cfg.codec.oversampling = cur.read_u8().unwrap() != 0;
+                cfg.codec.phase = cur.read_u8().unwrap() != 0;
+                cfg.codec.rolloff = cur.read_u8().unwrap() != 0;
+                cfg.codec.de_emphasis = cur.read_u8().unwrap() != 0;
+            },
+            _ => {
+                warn!("Unsupported TLV type {}", type_val);
+            }
+        }
+        //println!("\tT: {} L: {}", type_val, length_val);
+        position += length_val;
+        cur.set_position(position as u64);
     }
+    Ok(serde_json::to_string(&cfg).unwrap())
 }
 
 #[tauri::command]
@@ -502,38 +505,45 @@ fn read_version_info(connection_state: State<'_, Mutex<ConnectionState>>) -> Res
     buf.extend_from_slice(&(StructureTypes::GetVersion as u16).to_le_bytes());
     buf.extend_from_slice(&(4u16).to_le_bytes());
 
-    match &send_cmd(connection_state, &buf) {
-        Ok(v) => {
-            let mut cur = Cursor::new(v);
-            let _result_type_val = cur.read_u16::<LittleEndian>().unwrap();
-            let _result_length_val = cur.read_u16::<LittleEndian>().unwrap();
+    let binding = send_cmd(connection_state, &buf);
+    let v = match &binding {
+        Ok(x) => x,
+        Err(e) => { 
+            error!("Error reading device version information: {}", e); 
+            return Err(());
+        }
+    };
 
-            let _version_tlv_type_val = cur.read_u16::<LittleEndian>().unwrap();
-            let _version_tlv_length_val = cur.read_u16::<LittleEndian>().unwrap();
+    let mut cur = Cursor::new(v);
+    let _result_type_val = cur.read_u16::<LittleEndian>().unwrap();
+    let _result_length_val = cur.read_u16::<LittleEndian>().unwrap();
 
-            let mut versions : VersionInfo = Default::default();
-            versions.current_version = cur.read_u16::<LittleEndian>().unwrap();
-            versions.minimum_supported_version = cur.read_u16::<LittleEndian>().unwrap();
-            cur.consume(4);
-            let mut str_buf : Vec<u8> = Vec::new();
-            cur.read_until(0u8, &mut str_buf).unwrap();
-            str_buf.pop();
-            match str::from_utf8(&str_buf) {
-                Ok(s) => versions.git_hash = s.to_string(),
-                Err(e) => panic!("Invalid UTF-8 sequence: {}", e),
-            };
-            str_buf.clear();
-            cur.read_until(0u8, &mut str_buf).unwrap();
-            str_buf.pop();
-            match str::from_utf8(&str_buf) {
-                Ok(s) => versions.pico_sdk_version = s.to_string(),
-                Err(e) => panic!("Invalid UTF-8 sequence: {}", e),
-            };
-            return Ok(serde_json::to_string(&versions).unwrap())
-        }, // TODO: Check for NOK
-        Err(e) => { error!("Error reading device version information: {}", e); return Err(()) }
-    }
+    let _version_tlv_type_val = cur.read_u16::<LittleEndian>().unwrap();
+    let _version_tlv_length_val = cur.read_u16::<LittleEndian>().unwrap();
+
+    let mut versions : VersionInfo = Default::default();
+    versions.current_version = cur.read_u16::<LittleEndian>().unwrap();
+    versions.minimum_supported_version = cur.read_u16::<LittleEndian>().unwrap();
+    cur.consume(4);
+    let mut str_buf : Vec<u8> = Vec::new();
+    cur.read_until(0u8, &mut str_buf).unwrap();
+    str_buf.pop();
+    match str::from_utf8(&str_buf) {
+        Ok(s) => versions.git_hash = s.to_string(),
+        Err(e) => panic!("Invalid UTF-8 sequence: {}", e),
+    };
+    str_buf.clear();
+    cur.read_until(0u8, &mut str_buf).unwrap();
+    str_buf.pop();
+    match str::from_utf8(&str_buf) {
+        Ok(s) => versions.pico_sdk_version = s.to_string(),
+        Err(e) => panic!("Invalid UTF-8 sequence: {}", e),
+    };
+
+    Ok(serde_json::to_string(&versions).unwrap())
 }
+
+
 #[tauri::command]
 fn open(serial_number: &str, connection_state: State<Mutex<ConnectionState>>) -> bool {
     let context = match rusb::Context::new() {
