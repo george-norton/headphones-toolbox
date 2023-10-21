@@ -181,6 +181,27 @@ struct Preprocessing {
     reverse_stereo: bool
 }
 
+impl Preprocessing {
+    fn new(preamp: f32, postEQGain: f32, reverse_stereo: bool) -> Self {
+        Preprocessing { preamp: preamp.log10() * 20.0, postEQGain: postEQGain.log10() * 20.0, reverse_stereo }
+    }
+
+    fn to_buf(&self) -> Vec<u8> {
+        let mut preprocessing_payload : Vec<u8> = Vec::new();
+        // TODO: -1.0 as the firmware adds 1, cleanup later. Consider storing this value without the subtraction 
+        // to eliminate a math op and make the code more grokable?
+        //preprocessing_payload.extend_from_slice(&(f32::powf(10.0, cfg.preprocessing.preamp/20.0) - 1.0).to_le_bytes());
+        preprocessing_payload.extend_from_slice(&(f32::powf(10.0, self.preamp/20.0) - 1.0).to_le_bytes());
+    
+        /* Send the post-EQ gain value from the UI. */
+        preprocessing_payload.extend_from_slice(&(f32::powf(10.0, self.postEQGain/20.0) - 1.0).to_le_bytes());            
+    
+        preprocessing_payload.push(self.reverse_stereo as u8);
+        preprocessing_payload.extend_from_slice(&[0u8; 3]);
+        preprocessing_payload
+    }
+}
+
 #[derive(Serialize, Deserialize, Default)]
 struct Codec {
     oversampling: bool,
@@ -315,7 +336,6 @@ fn send_cmd(connection_state: State<'_, Mutex<ConnectionState>>, buf: &[u8]) -> 
 #[tauri::command]
 fn write_config(config: &str, connection_state: State<'_, Mutex<ConnectionState>>) -> Result<bool, ()> {
     let mut filter_payload : Vec<u8> = Vec::new();
-    let mut preprocessing_payload : Vec<u8> = Vec::new();
 
     let cfg = match serde_json::from_str::<Config>(config) {
         Ok(x) => x,
@@ -365,20 +385,8 @@ fn write_config(config: &str, connection_state: State<'_, Mutex<ConnectionState>
             }
         }
     }
-    // TODO: -1.0 as the firmware adds 1, cleanup later. Consider storing this value without the subtraction 
-    // to eliminate a math op and make the code more grokable?
-    //preprocessing_payload.extend_from_slice(&(f32::powf(10.0, cfg.preprocessing.preamp/20.0) - 1.0).to_le_bytes());
-    preprocessing_payload.extend_from_slice(&(f32::powf(10.0, cfg.preprocessing.preamp/20.0) - 1.0).to_le_bytes());
 
-    /* Send the post-EQ gain value from the UI. */
-    preprocessing_payload.extend_from_slice(&(f32::powf(10.0, cfg.preprocessing.postEQGain/20.0) - 1.0).to_le_bytes());            
-
-    preprocessing_payload.push(cfg.preprocessing.reverse_stereo as u8);
-
-
-
-    preprocessing_payload.extend_from_slice(&[0u8; 3]);
-
+    let preprocessing_payload : Vec<u8> = cfg.preprocessing.to_buf();
     let codec_payload = cfg.codec.to_buf();
 
     let mut buf : Vec<u8> = Vec::new();
@@ -445,12 +453,10 @@ fn load_config(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<St
             x if x == StructureTypes::PreProcessingConfiguration as u16 => {
                 // +1 to maintain compatability with old firmwares
                 let preamp = cur.read_f32::<LittleEndian>().unwrap() + 1.0;
-                cfg.preprocessing.preamp = preamp.log10() * 20.0;
-
                 let postEQGain = cur.read_f32::<LittleEndian>().unwrap() + 1.0;
-                cfg.preprocessing.postEQGain = postEQGain.log10() * 20.0;
+                let reverse_stereo = cur.read_u8().unwrap() != 0;
 
-                cfg.preprocessing.reverse_stereo = cur.read_u8().unwrap() != 0;
+                cfg.preprocessing = Preprocessing::new(preamp, postEQGain, reverse_stereo);
                 cur.seek(SeekFrom::Current(3)); // reserved bytes
             },
             x if x == StructureTypes::FilterConfiguration as u16 => {
