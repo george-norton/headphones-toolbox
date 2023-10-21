@@ -189,6 +189,21 @@ struct Codec {
     de_emphasis: bool
 }
 
+impl Codec {
+    fn new(oversampling: bool, phase: bool, rolloff: bool, de_emphasis: bool) -> Self {
+        Self { oversampling, phase, rolloff, de_emphasis }
+    }
+
+    fn to_buf(&self) -> Vec<u8> {
+        vec![
+            self.oversampling as u8, 
+            self.phase as u8, 
+            self.rolloff as u8, 
+            self.de_emphasis as u8
+        ]
+    }
+}
+
 #[derive(Serialize, Deserialize, Default)]
 struct Config {
     preprocessing: Preprocessing,
@@ -301,7 +316,6 @@ fn send_cmd(connection_state: State<'_, Mutex<ConnectionState>>, buf: &[u8]) -> 
 fn write_config(config: &str, connection_state: State<'_, Mutex<ConnectionState>>) -> Result<bool, ()> {
     let mut filter_payload : Vec<u8> = Vec::new();
     let mut preprocessing_payload : Vec<u8> = Vec::new();
-    let mut codec_payload : Vec<u8> = Vec::new();
 
     let cfg = match serde_json::from_str::<Config>(config) {
         Ok(x) => x,
@@ -365,10 +379,7 @@ fn write_config(config: &str, connection_state: State<'_, Mutex<ConnectionState>
 
     preprocessing_payload.extend_from_slice(&[0u8; 3]);
 
-    codec_payload.push(cfg.codec.oversampling as u8);
-    codec_payload.push(cfg.codec.phase as u8);
-    codec_payload.push(cfg.codec.rolloff as u8);
-    codec_payload.push(cfg.codec.de_emphasis as u8);
+    let codec_payload = cfg.codec.to_buf();
 
     let mut buf : Vec<u8> = Vec::new();
     buf.extend_from_slice(&(StructureTypes::SetConfiguration as u16).to_le_bytes());
@@ -490,10 +501,11 @@ fn load_config(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<St
                 }
             },
             x if x == StructureTypes::Pcm3060Configuration as u16 => {
-                cfg.codec.oversampling = cur.read_u8().unwrap() != 0;
-                cfg.codec.phase = cur.read_u8().unwrap() != 0;
-                cfg.codec.rolloff = cur.read_u8().unwrap() != 0;
-                cfg.codec.de_emphasis = cur.read_u8().unwrap() != 0;
+                let oversampling = cur.read_u8().unwrap() != 0;
+                let phase = cur.read_u8().unwrap() != 0;
+                let rolloff = cur.read_u8().unwrap() != 0;
+                let de_emphasis = cur.read_u8().unwrap() != 0;
+                cfg.codec = Codec::new(oversampling, phase, rolloff, de_emphasis);
             },
             _ => {
                 warn!("Unsupported TLV type {}", type_val);
