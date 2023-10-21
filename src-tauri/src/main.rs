@@ -98,10 +98,10 @@ fn find_configuration_endpoints<T: UsbContext>(
                 }
 
                 if let (Some(input_addr), Some(out_addr)) = (input, output) {
-                    return Some(ConfigurationInterface { 
-                        interface: interface_desc.interface_number(), 
-                        input: input_addr, 
-                        output: out_addr
+                    return Some(ConfigurationInterface {
+                        interface: interface_desc.interface_number(),
+                        input: input_addr,
+                        output: out_addr,
                     });
                 }
             }
