@@ -92,27 +92,27 @@ fn find_configuration_endpoints<T: UsbContext>(
 
         for interface in config_desc.interfaces() {
             for interface_desc in interface.descriptors() {
-                if interface_desc.class_code() == 0xff {
-                    let mut endpoints = ConfigurationInterface {
-                        interface: interface_desc.interface_number(),
-                        input: 0,
-                        output: 0,
-                    };
-                    let mut has_input = false;
-                    let mut has_output = false;
-                    for endpoint_desc in interface_desc.endpoint_descriptors() {
-                        if endpoint_desc.direction() == Direction::In {
-                            endpoints.input = endpoint_desc.address();
-                            has_input = true;
-                        }
-                        if endpoint_desc.direction() == Direction::Out {
-                            endpoints.output = endpoint_desc.address();
-                            has_output = true;
-                        }
+                if interface_desc.class_code() != 0xff {
+                    continue;
+                }
+
+                let mut input = None;
+                let mut output = None;
+                for endpoint_desc in interface_desc.endpoint_descriptors() {
+                    if endpoint_desc.direction() == Direction::In {
+                        input = Some(endpoint_desc.address());
                     }
-                    if has_input && has_output {
-                        return Some(endpoints);
+                    if endpoint_desc.direction() == Direction::Out {
+                        output = Some(endpoint_desc.address());
                     }
+                }
+
+                if let (Some(input_addr), Some(out_addr)) = (input, output) {
+                    return Some(ConfigurationInterface { 
+                        interface: interface_desc.interface_number(), 
+                        input: input_addr, 
+                        output: out_addr
+                    });
                 }
             }
         }
