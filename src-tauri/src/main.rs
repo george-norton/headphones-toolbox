@@ -389,7 +389,7 @@ fn load_config(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<St
     let _result_type_val = cur.read_u16::<LittleEndian>().unwrap();
     let result_length_val = cur.read_u16::<LittleEndian>().unwrap();
     let mut position = 4;
-    let mut cfg : Config = Default::default();
+    let mut cfg = Config::default();
     while position < result_length_val {
         let type_val = cur.read_u16::<LittleEndian>().unwrap();
         let length_val = cur.read_u16::<LittleEndian>().unwrap();
@@ -412,7 +412,7 @@ fn load_config(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<St
                     cur.seek(SeekFrom::Current(3)); // reserved bytes
                     let filter_args;
 
-                    let mut filter : Filter = Default::default();
+                    let mut filter = Filter::default();
                     filter.enabled = true;
                     match filter_type {
                         x if x == FilterType::Lowpass as u8 => { filter.filter_type = "lowpass".to_string(); filter_args = 2; },
@@ -521,7 +521,7 @@ fn read_version_info(connection_state: State<'_, Mutex<ConnectionState>>) -> Res
     let _version_tlv_type_val = cur.read_u16::<LittleEndian>().unwrap();
     let _version_tlv_length_val = cur.read_u16::<LittleEndian>().unwrap();
 
-    let mut versions : VersionInfo = Default::default();
+    let mut versions = VersionInfo::default();
     versions.current_version = cur.read_u16::<LittleEndian>().unwrap();
     versions.minimum_supported_version = cur.read_u16::<LittleEndian>().unwrap();
     cur.consume(4);
