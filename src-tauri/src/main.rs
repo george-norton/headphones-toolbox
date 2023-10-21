@@ -4,6 +4,7 @@ use rusb::{
     Device, DeviceHandle, Direction,  UsbContext,
 };
 use tauri::State;
+use std::fmt::format;
 use std::time::Duration;
 use std::collections::HashSet;
 use std::collections::HashMap;
@@ -195,7 +196,7 @@ struct Config {
     codec: Codec
 }
 
-#[derive(Serialize, Deserialize, Default)]
+#[derive(Serialize, Deserialize)]
 struct VersionInfo {
     current_version : u16,
     minimum_supported_version : u16,
@@ -203,6 +204,42 @@ struct VersionInfo {
     pico_sdk_version: String
 }
 
+impl VersionInfo {
+    fn from_buf(buf: &[u8]) -> Result<Self, String> {
+        let mut cur = Cursor::new(buf);
+        let _result_type_val = cur.read_u16::<LittleEndian>().unwrap();
+        let _result_length_val = cur.read_u16::<LittleEndian>().unwrap();
+
+        let _version_tlv_type_val = cur.read_u16::<LittleEndian>().unwrap();
+        let _version_tlv_length_val = cur.read_u16::<LittleEndian>().unwrap();
+
+        let current_version = cur.read_u16::<LittleEndian>().unwrap();
+        let minimum_supported_version = cur.read_u16::<LittleEndian>().unwrap();
+        cur.consume(4);
+        let mut str_buf : Vec<u8> = Vec::new();
+        cur.read_until(0u8, &mut str_buf).unwrap();
+        str_buf.pop();
+        let git_hash = match str::from_utf8(&str_buf) {
+            Ok(s) => s.to_string(),
+            Err(e) => return Err(format!("Invalid UTF-8 sequence: {}", e)),
+        };
+        str_buf.clear();
+        cur.read_until(0u8, &mut str_buf).unwrap();
+        str_buf.pop();
+        let pico_sdk_version = match str::from_utf8(&str_buf) {
+            Ok(s) => s.to_string(),
+            Err(e) => return Err(format!("Invalid UTF-8 sequence: {}", e)),
+        };
+
+        Ok(Self {
+            current_version,
+            minimum_supported_version,
+            git_hash,
+            pico_sdk_version,
+        })
+    }
+}
+ 
 fn send_cmd(connection_state: State<'_, Mutex<ConnectionState>>, buf: &[u8]) -> Result<[u8; MAX_CFG_LEN], &'static str> {
     let mut connection = connection_state.lock().unwrap();
 
@@ -514,33 +551,8 @@ fn read_version_info(connection_state: State<'_, Mutex<ConnectionState>>) -> Res
         }
     };
 
-    let mut cur = Cursor::new(v);
-    let _result_type_val = cur.read_u16::<LittleEndian>().unwrap();
-    let _result_length_val = cur.read_u16::<LittleEndian>().unwrap();
-
-    let _version_tlv_type_val = cur.read_u16::<LittleEndian>().unwrap();
-    let _version_tlv_length_val = cur.read_u16::<LittleEndian>().unwrap();
-
-    let mut versions = VersionInfo::default();
-    versions.current_version = cur.read_u16::<LittleEndian>().unwrap();
-    versions.minimum_supported_version = cur.read_u16::<LittleEndian>().unwrap();
-    cur.consume(4);
-    let mut str_buf : Vec<u8> = Vec::new();
-    cur.read_until(0u8, &mut str_buf).unwrap();
-    str_buf.pop();
-    match str::from_utf8(&str_buf) {
-        Ok(s) => versions.git_hash = s.to_string(),
-        Err(e) => panic!("Invalid UTF-8 sequence: {}", e),
-    };
-    str_buf.clear();
-    cur.read_until(0u8, &mut str_buf).unwrap();
-    str_buf.pop();
-    match str::from_utf8(&str_buf) {
-        Ok(s) => versions.pico_sdk_version = s.to_string(),
-        Err(e) => panic!("Invalid UTF-8 sequence: {}", e),
-    };
-
-    Ok(serde_json::to_string(&versions).unwrap())
+    let version = VersionInfo::from_buf(v).unwrap();
+    Ok(serde_json::to_string(&version).unwrap())
 }
 
 
