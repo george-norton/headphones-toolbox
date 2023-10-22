@@ -1,34 +1,7 @@
-use log::error;
 use std::io::{Read, Seek, SeekFrom};
 
 use byteorder::{LittleEndian, ReadBytesExt};
 use serde::{Deserialize, Serialize};
-
-#[repr(u16)]
-// #[allow(dead_code)]
-pub enum StructureTypes {
-    // Commands/Responses, these are container TLVs. The Value will be a set of TLV structures.
-    OK = 0,      // Standard response when a command was successful
-    NOK,         // Standard error response
-    FlashHeader, // A special container for the config stored in flash. Hopefully there is some useful
-    // metadata in here to allow us to migrate an old config to a new version.
-    GetVersion, // Returns the current config version, and the minimum supported version so clients
-    // can decide if they can talk to us or not.
-    SetConfiguration, // Updates the active configuration with the supplied TLVs
-    GetActiveConfiguration, // Retrieves the current active configuration TLVs from RAM
-    GetStoredConfiguration, // Retrieves the current stored configuration TLVs from Flash
-    SaveConfiguration, // Writes the active configuration to Flash
-    FactoryReset,     // Invalidates the flash memory
-
-    // Configuration structures, these are returned in the body of a command/response
-    PreProcessingConfiguration = 0x200,
-    FilterConfiguration,
-    Pcm3060Configuration,
-
-    // Status structures, these are returned in the body of a command/response but they are
-    // not persisted as part of the configuration
-    VersionStatus = 0x400,
-}
 
 trait ReadFilter: Sized {
     fn from_reader(cur: impl Read) -> Self;
