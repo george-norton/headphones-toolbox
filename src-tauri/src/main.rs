@@ -83,10 +83,7 @@ impl PollDeviceStatus {
 fn find_configuration_endpoints<T: UsbContext>(
     device: &Device<T>,
 ) -> Option<ConfigurationInterface> {
-    let device_desc = match device.device_descriptor() {
-        Ok(d) => d,
-        Err(_) => return None,
-    };
+    let device_desc = device.device_descriptor().ok()?;
     for n in 0..device_desc.num_configurations() {
         let config_desc = match device.config_descriptor(n) {
             Ok(c) => c,
