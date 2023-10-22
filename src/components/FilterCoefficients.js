@@ -1,3 +1,5 @@
+import { FilterTypes } from './FilterTypes.js'
+
 const fs = 48000
 
 export function getLowpassCoefficients(f0, Q) {
@@ -162,24 +164,23 @@ export function getHighShelfCoefficients(f0, dBgain, Q) {
 
 export function getFilterCoefficients(type, f0, dbGain, q) {
     switch (type) {
-        case "lowpass":
+        case FilterTypes.LOWPASS:
             return getLowpassCoefficients(f0, q)
-        case "highpass":
+        case FilterTypes.HIGHPASS:
             return getBandpassSkirtCoefficients(f0, q)
-        case "bandpass_skirt":
+        case FilterTypes.BANDPASSSKIRT:
             return getBandpassSkirtCoefficients(f0, q)
-        case "bandpass":
-        case "bandpass_peak":
+        case FilterTypes.BANDPASSPEAK:
             return getBandpassPeakCoefficients(f0, q)
-        case "notch":
+        case FilterTypes.NOTCH:
             return getNotchCoefficients(f0, q)
-        case "allpass":
+        case FilterTypes.ALLPASS:
             return getAllPassCoefficients(f0, q)
-        case "peaking":
+        case FilterTypes.PEAKING:
             return getPeakingCoefficients(f0, dbGain, q)
-        case "lowshelf":
+        case FilterTypes.LOWSHELF:
             return getLowShelfCoefficients(f0, dbGain, q)
-        case "highshelf":
+        case FilterTypes.HIGHSHELF:
             return getHighShelfCoefficients(f0, dbGain, q)
     }
     return undefined

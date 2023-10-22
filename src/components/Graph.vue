@@ -14,6 +14,7 @@ import {
   PointElement,
   LineElement
 } from 'chart.js'
+import { FilterTypes } from './FilterTypes'
 
 ChartJS.register(
   LinearScale,
@@ -61,7 +62,7 @@ export default {
             }
             var cfg = JSON.stringify(config[i])
             if (previousConfig[i] !== cfg && config[i].enabled) {
-              if (config[i].filter_type == "custom_iir") {
+              if (config[i].filter_type == FilterTypes.CUSTOMIIR) {
                 if (config[i].a0 != 0) {
                   const iirFilter = new IIRFilterNode(audioCtx, { feedforward: [config[i].b0, config[i].b1, config[i].b2], feedback: [config[i].a0, config[i].a1, config[i].a2] })
                   iirFilter.getFrequencyResponse(frequency, magnitude[i], phaseResponse)

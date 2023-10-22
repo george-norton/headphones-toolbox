@@ -2,6 +2,7 @@
 <script>
 import FilterVue from './Filter.vue'
 import { ref } from 'vue'
+import { FilterTypes } from './FilterTypes.js'
 
 export default {
     props: {
@@ -13,7 +14,7 @@ export default {
     },
     methods: {
         addFilter() {
-            this.filters.push({ filter_type: "peaking", q: 0.707106781, f0: 150, db_gain: 0, 
+            this.filters.push({ filter_type: FilterTypes.PEAKING, q: 0.707106781, f0: 150, db_gain: 0, 
                                 a0: 0.5, a1: 0.5, a2: 0.5, b0: 0.5, b1: 0.5, b2: 0.5, enabled: true })
         },
         deleteFilter(filter) {

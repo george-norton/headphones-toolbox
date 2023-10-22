@@ -136,7 +136,7 @@ enum StructureTypes {
     VersionStatus = 0x400,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 enum FilterType {
     Lowpass = 0,
     Highpass,
@@ -151,97 +151,117 @@ enum FilterType {
 }
 
 impl FilterType {
-    fn from_str(name: &str) -> Option<Self> {
-        match name {
-            "lowpass" => Some(Self::Lowpass),
-            "highpass" => Some(Self::Highpass),
-            "bandpass_skirt" => Some(Self::BandpassSkirt),
-            "bandpass" | "bandpass_peak" => Some(Self::BandpassPeak),
-            "notch" => Some(Self::Notch),
-            "allpass" => Some(Self::Allpass),
-            "peaking" => Some(Self::Peaking),
-            "lowshelf" => Some(Self::LowShelf),
-            "highshelf" => Some(Self::HighShelf),
-            "custom_iir" => Some(Self::CustomIIR),
-            _ => None,
-        }
-    }
-
-    fn get_data(self) -> FilterData {
+    fn num_args(self) -> i32 {
         match self {
-            Self::Lowpass => FilterData {
-                name: "lowpass".to_string(),
-                num_args: 2,
-                filter_type: self,
-            },
-            Self::Highpass => FilterData {
-                name: "highpass".to_string(),
-                num_args: 2,
-                filter_type: self,
-            },
-            Self::BandpassSkirt => FilterData {
-                name: "bandpass_skirt".to_string(),
-                num_args: 2,
-                filter_type: self,
-            },
-            Self::BandpassPeak => FilterData {
-                name: "bandpass_peak".to_string(),
-                num_args: 2,
-                filter_type: self,
-            },
-            Self::Notch => FilterData {
-                name: "notch".to_string(),
-                num_args: 2,
-                filter_type: self,
-            },
-            Self::Allpass => FilterData {
-                name: "allpass".to_string(),
-                num_args: 2,
-                filter_type: self,
-            },
-            Self::Peaking => FilterData {
-                name: "peaking".to_string(),
-                num_args: 3,
-                filter_type: self,
-            },
-            Self::LowShelf => FilterData {
-                name: "lowshelf".to_string(),
-                num_args: 3,
-                filter_type: self,
-            },
-            Self::HighShelf => FilterData {
-                name: "highshelf".to_string(),
-                num_args: 3,
-                filter_type: self,
-            },
-            Self::CustomIIR => FilterData {
-                name: "custom_iir".to_string(),
-                num_args: 6,
-                filter_type: self,
-            },
+            Self::Lowpass | Self::Highpass | Self::BandpassSkirt | Self::BandpassPeak | Self::Notch | Self::Allpass => 2,
+            Self::Peaking | Self::LowShelf | Self::HighShelf => 3,
+            Self::CustomIIR => 6,
         }
     }
 }
 
-#[derive(Serialize, Deserialize, Default)]
-struct Filter {
-    filter_type: String,
-    q: f32,
-    f0: f32,
-    db_gain: f32,
-    a0: f64,
-    a1: f64,
-    a2: f64,
-    b0: f64,
-    b1: f64,
-    b2: f64,
-    enabled: bool,
+// #[derive(Serialize, Deserialize, Default)]
+// struct Filter {
+//     filter_type: String,
+//     q: f32,
+//     f0: f32,
+//     db_gain: f32,
+//     a0: f64,
+//     a1: f64,
+//     a2: f64,
+//     b0: f64,
+//     b1: f64,
+//     b2: f64,
+//     enabled: bool,
+// }
+
+#[derive(Serialize, Deserialize)]
+#[serde(tag = "type")]
+enum Filter {
+    Normal {
+        filter_type: FilterType,
+        enabled: bool,
+        q: f32,
+        f0: f32,
+        db_gain: f32,
+    },
+    Custom {
+        enabled: bool,
+        a0: f64,
+        a1: f64,
+        a2: f64,
+        b0: f64,
+        b1: f64,
+        b2: f64,
+    },
 }
 
-struct FilterData {
-    name: String,
-    num_args: i32,
-    filter_type: FilterType,
+impl Filter {
+    fn enabled(&self) -> bool {
+        match self {
+            Self::Normal {
+                filter_type: _,
+                enabled,
+                q: _,
+                f0: _,
+                db_gain: _,
+            } => *enabled,
+            Self::Custom {
+                enabled,
+                a0: _,
+                a1: _,
+                a2: _,
+                b0: _,
+                b1: _,
+                b2: _,
+            } => *enabled,
+        }
+    }
+
+    fn filter_type(&self) -> FilterType {
+        match self {
+            Self::Normal {
+                filter_type,
+                enabled: _,
+                q: _,
+                f0: _,
+                db_gain: _,
+            } => *filter_type,
+            Self::Custom {
+                enabled: _,
+                a0: _,
+                a1: _,
+                a2: _,
+                b0: _,
+                b1: _,
+                b2: _,
+            } => FilterType::CustomIIR,
+        }
+    }
+
+    fn payload(&self) -> Vec<u8> {
+        let mut filter_payload = Vec::new();
+        filter_payload.push(self.filter_type() as u8);
+        filter_payload.extend_from_slice(&[0u8; 3]);
+        match self {
+            Filter::Normal { filter_type, enabled: _, q, f0, db_gain } => {
+                filter_payload.extend_from_slice(&f0.to_le_bytes());
+                if filter_type.num_args() == 3 {
+                    filter_payload.extend_from_slice(&db_gain.to_le_bytes());
+                }
+                filter_payload.extend_from_slice(&q.to_le_bytes());
+            },
+            Filter::Custom { enabled: _, a0, a1, a2, b0, b1, b2 } => {
+                filter_payload.extend_from_slice(&a0.to_le_bytes());
+                filter_payload.extend_from_slice(&a1.to_le_bytes());
+                filter_payload.extend_from_slice(&a2.to_le_bytes());
+                filter_payload.extend_from_slice(&b0.to_le_bytes());
+                filter_payload.extend_from_slice(&b1.to_le_bytes());
+                filter_payload.extend_from_slice(&b2.to_le_bytes());
+            },
+        }
+        filter_payload
+    }
 }
 
 #[derive(Serialize, Deserialize, Default)]
@@ -432,28 +452,8 @@ fn write_config(
     };
 
     let mut filter_payload: Vec<u8> = Vec::new();
-    for filter in cfg.filters.iter().filter(|f| f.enabled) {
-        let filter_type = match FilterType::from_str(&filter.filter_type) {
-            Some(x) => x,
-            None => return Ok(false),
-        };
-
-        filter_payload.push(filter_type as u8);
-        filter_payload.extend_from_slice(&[0u8; 3]);
-        if let FilterType::CustomIIR = filter_type {
-            filter_payload.extend_from_slice(&filter.a0.to_le_bytes());
-            filter_payload.extend_from_slice(&filter.a1.to_le_bytes());
-            filter_payload.extend_from_slice(&filter.a2.to_le_bytes());
-            filter_payload.extend_from_slice(&filter.b0.to_le_bytes());
-            filter_payload.extend_from_slice(&filter.b1.to_le_bytes());
-            filter_payload.extend_from_slice(&filter.b2.to_le_bytes());
-        } else {
-            filter_payload.extend_from_slice(&filter.f0.to_le_bytes());
-            if filter_type.get_data().num_args == 3 {
-                filter_payload.extend_from_slice(&filter.db_gain.to_le_bytes());
-            }
-            filter_payload.extend_from_slice(&filter.q.to_le_bytes());
-        }
+    for filter in cfg.filters.iter().filter(|f| f.enabled()) {
+        filter_payload.extend_from_slice(&filter.payload());
     }
 
     let preprocessing_payload: Vec<u8> = cfg.preprocessing.to_buf();
@@ -539,23 +539,17 @@ fn load_config(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<St
                     let filter_type = cur.read_u8().unwrap();
                     cur.seek(SeekFrom::Current(3)); // reserved bytes
 
-                    let mut filter = Filter::default();
-                    filter.enabled = true;
-                    let filter_data = match filter_type {
-                        x if x == FilterType::Lowpass as u8 => FilterType::Lowpass.get_data(),
-                        x if x == FilterType::Highpass as u8 => FilterType::Highpass.get_data(),
-                        x if x == FilterType::BandpassSkirt as u8 => {
-                            FilterType::BandpassSkirt.get_data()
-                        }
-                        x if x == FilterType::BandpassPeak as u8 => {
-                            FilterType::BandpassPeak.get_data()
-                        }
-                        x if x == FilterType::Notch as u8 => FilterType::Notch.get_data(),
-                        x if x == FilterType::Allpass as u8 => FilterType::Allpass.get_data(),
-                        x if x == FilterType::Peaking as u8 => FilterType::Peaking.get_data(),
-                        x if x == FilterType::LowShelf as u8 => FilterType::LowShelf.get_data(),
-                        x if x == FilterType::HighShelf as u8 => FilterType::HighShelf.get_data(),
-                        x if x == FilterType::CustomIIR as u8 => FilterType::CustomIIR.get_data(),
+                    let filter_type = match filter_type {
+                        x if x == FilterType::Lowpass as u8 => FilterType::Lowpass,
+                        x if x == FilterType::Highpass as u8 => FilterType::Highpass,
+                        x if x == FilterType::BandpassSkirt as u8 => FilterType::BandpassSkirt,
+                        x if x == FilterType::BandpassPeak as u8 => FilterType::BandpassPeak,
+                        x if x == FilterType::Notch as u8 => FilterType::Notch,
+                        x if x == FilterType::Allpass as u8 => FilterType::Allpass,
+                        x if x == FilterType::Peaking as u8 => FilterType::Peaking,
+                        x if x == FilterType::LowShelf as u8 => FilterType::LowShelf,
+                        x if x == FilterType::HighShelf as u8 => FilterType::HighShelf,
+                        x if x == FilterType::CustomIIR as u8 => FilterType::CustomIIR,
                         _ => {
                             return {
                                 error!("Unknown filter type {}", filter_type);
@@ -564,23 +558,38 @@ fn load_config(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<St
                         }
                     };
 
-                    filter.filter_type = filter_data.name;
-
-                    if let FilterType::CustomIIR = filter_data.filter_type {
-                        filter.a0 = cur.read_f64::<LittleEndian>().unwrap();
-                        filter.a1 = cur.read_f64::<LittleEndian>().unwrap();
-                        filter.a2 = cur.read_f64::<LittleEndian>().unwrap();
-                        filter.b0 = cur.read_f64::<LittleEndian>().unwrap();
-                        filter.b1 = cur.read_f64::<LittleEndian>().unwrap();
-                        filter.b2 = cur.read_f64::<LittleEndian>().unwrap();
-                    } else {
-                        filter.f0 = cur.read_f32::<LittleEndian>().unwrap();
-                        filter.db_gain;
-                        if filter_data.num_args == 3 {
-                            filter.db_gain = cur.read_f32::<LittleEndian>().unwrap();
+                    let filter = if let FilterType::CustomIIR = filter_type {
+                        let a0 = cur.read_f64::<LittleEndian>().unwrap();
+                        let a1 = cur.read_f64::<LittleEndian>().unwrap();
+                        let a2 = cur.read_f64::<LittleEndian>().unwrap();
+                        let b0 = cur.read_f64::<LittleEndian>().unwrap();
+                        let b1 = cur.read_f64::<LittleEndian>().unwrap();
+                        let b2 = cur.read_f64::<LittleEndian>().unwrap();
+                        Filter::Custom {
+                            enabled: true,
+                            a0,
+                            a1,
+                            a2,
+                            b0,
+                            b1,
+                            b2,
                         }
-                        filter.q = cur.read_f32::<LittleEndian>().unwrap();
-                    }
+                    } else {
+                        let f0 = cur.read_f32::<LittleEndian>().unwrap();
+                        let db_gain = if filter_type.num_args() == 3 {
+                            cur.read_f32::<LittleEndian>().unwrap()
+                        } else {
+                            0.0
+                        };
+                        let q = cur.read_f32::<LittleEndian>().unwrap();
+                        Filter::Normal {
+                            filter_type,
+                            enabled: true,
+                            q,
+                            f0,
+                            db_gain,
+                        }
+                    };
                     cfg.filters.push(filter)
                 }
 
