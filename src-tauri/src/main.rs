@@ -38,8 +38,8 @@ use std::fs;
 use std::fs::File;
 use tauri::PathResolver;
 
-mod model;
 mod commands;
+mod model;
 
 pub const LIBUSB_RECIPIENT_DEVICE: u8 = 0x00;
 pub const LIBUSB_REQUEST_TYPE_VENDOR: u8 = 0x02 << 5;
@@ -258,7 +258,8 @@ fn send_cmd(
     //println!("Write {} bytes to {}", buf.len(), interface.output);
     match device
         .device_handle
-        .write_bulk(interface.output, &buf, USB_TIMEOUT) {
+        .write_bulk(interface.output, &buf, USB_TIMEOUT)
+    {
         Ok(_) => (),
         Err(err) => {
             error!("Failed to write to the configuration interface: {}", err);
@@ -289,7 +290,10 @@ fn send_cmd(
             }
             Err(err) => {
                 connection.error = true;
-                return Err(format!("Error reading from the configuration inteface: {}", err));
+                return Err(format!(
+                    "Error reading from the configuration inteface: {}",
+                    err
+                ));
             }
         }
     }
@@ -401,17 +405,23 @@ fn reboot_bootloader(connection_state: State<Mutex<ConnectionState>>) -> Result<
 }
 
 #[tauri::command]
-fn read_version_info(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<VersionInfo, String> {
+fn read_version_info(
+    connection_state: State<'_, Mutex<ConnectionState>>,
+) -> Result<VersionInfo, String> {
     let v = send_cmd(connection_state, GetVersion::new())?;
     let version = VersionInfo::from_buf(&v)?;
     Ok(version)
 }
 
 #[tauri::command]
-fn open(serial_number: &str, connection_state: State<Mutex<ConnectionState>>) -> Result<(), String> {
+fn open(
+    serial_number: &str,
+    connection_state: State<Mutex<ConnectionState>>,
+) -> Result<(), String> {
     let context = rusb::Context::new().expect("Can't create libusb::Context::new()");
 
-    let devices = context.devices()
+    let devices = context
+        .devices()
         .map_err(|e| format!("Device not found: {}", e))?;
 
     let mut connection = connection_state.lock().unwrap();
@@ -430,7 +440,9 @@ fn open(serial_number: &str, connection_state: State<Mutex<ConnectionState>>) ->
                                     i
                                 }
                                 None => {
-                                    return Err("Could not detect a configuration interface".to_owned());
+                                    return Err(
+                                        "Could not detect a configuration interface".to_owned()
+                                    );
                                 }
                             };
                             info!(
@@ -505,10 +517,8 @@ fn poll_devices(connection_state: State<Mutex<ConnectionState>>) -> PollDeviceSt
                 }
             };
 
-            let serial_number_string_index =
-                device_desc.serial_number_string_index().unwrap();
-            let serial_number =
-                handle.read_string_descriptor_ascii(serial_number_string_index);
+            let serial_number_string_index = device_desc.serial_number_string_index().unwrap();
+            let serial_number = handle.read_string_descriptor_ascii(serial_number_string_index);
 
             let sn = match serial_number {
                 Ok(x) => x,

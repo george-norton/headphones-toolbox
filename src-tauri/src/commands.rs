@@ -1,9 +1,6 @@
-
-
 use std::io::Write;
 
-use crate::{Preprocessing, model::Filters, Codec};
-
+use crate::{model::Filters, Codec, Preprocessing};
 
 pub trait Command {
     fn write_as_binary(&self, buf: impl Write);
@@ -101,18 +98,22 @@ impl Command for SetPcm3060Configuration<'_> {
     }
 }
 
-pub struct SetConfiguration<'a, 'b, 'c>{
+pub struct SetConfiguration<'a, 'b, 'c> {
     preprocessing: SetPreprocessingConfiguration<'a>,
     filter: SetFilterConfiguration<'b>,
-    codec: SetPcm3060Configuration<'c>
+    codec: SetPcm3060Configuration<'c>,
 }
 
 impl<'a, 'b, 'c> SetConfiguration<'a, 'b, 'c> {
-    pub fn new(preprocessing: SetPreprocessingConfiguration<'a>, filter: SetFilterConfiguration<'b>, codec: SetPcm3060Configuration<'c>) -> Self {
+    pub fn new(
+        preprocessing: SetPreprocessingConfiguration<'a>,
+        filter: SetFilterConfiguration<'b>,
+        codec: SetPcm3060Configuration<'c>,
+    ) -> Self {
         Self {
             preprocessing,
             filter,
-            codec
+            codec,
         }
     }
 }
@@ -121,9 +122,10 @@ impl Command for SetConfiguration<'_, '_, '_> {
     fn write_as_binary(&self, mut buf: impl Write) {
         let _ = buf.write(&(StructureTypes::SetConfiguration as u16).to_le_bytes());
         let _ = buf.write(
-            &((16 + self.filter.0.to_payload().len() 
-            + self.preprocessing.0.to_payload().len() 
-            + self.codec.0.to_payload().len()) as u16)
+            &((16
+                + self.filter.0.to_payload().len()
+                + self.preprocessing.0.to_payload().len()
+                + self.codec.0.to_payload().len()) as u16)
                 .to_le_bytes(),
         );
         let _ = &self.preprocessing.write_as_binary(&mut buf);
@@ -195,7 +197,11 @@ mod tests {
         let config = Preprocessing::new(0.0, 0.0, false);
         SetPreprocessingConfiguration::new(&config).write_as_binary(&mut buf);
         assert!(buf.len() > 0, "Command didn't write anything");
-        assert_eq!(buf.as_slice(), &[0, 2, 16, 0, 0, 0, 128, 191, 0, 0, 128, 191, 0, 0, 0, 0], "Wrong data");
+        assert_eq!(
+            buf.as_slice(),
+            &[0, 2, 16, 0, 0, 0, 128, 191, 0, 0, 128, 191, 0, 0, 0, 0],
+            "Wrong data"
+        );
     }
 
     #[test]
@@ -228,7 +234,14 @@ mod tests {
         let codec = SetPcm3060Configuration::new(&codec_config);
         SetConfiguration::new(prep, filters, codec).write_as_binary(&mut buf);
         assert!(buf.len() > 0, "Command didn't write anything");
-        assert_eq!(buf.as_slice(), &[4, 0, 32, 0, 0, 2, 16, 0, 0, 0, 128, 191, 0, 0, 128, 191, 0, 0, 0, 0, 1, 2, 4, 0, 2, 2, 8, 0, 0, 0, 0, 0], "Wrong data")
+        assert_eq!(
+            buf.as_slice(),
+            &[
+                4, 0, 32, 0, 0, 2, 16, 0, 0, 0, 128, 191, 0, 0, 128, 191, 0, 0, 0, 0, 1, 2, 4, 0,
+                2, 2, 8, 0, 0, 0, 0, 0
+            ],
+            "Wrong data"
+        )
     }
 
     #[test]
