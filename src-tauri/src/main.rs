@@ -241,7 +241,8 @@ fn send_cmd(
     connection_state: State<'_, Mutex<ConnectionState>>,
     cmd: impl Command,
 ) -> Result<[u8; MAX_CFG_LEN], String> {
-    let buf = cmd.as_buf();
+    let mut buf = Vec::new();
+    cmd.write_as_binary(&mut buf);
     let mut connection = connection_state.lock().unwrap();
 
     let device = match &connection.connected {

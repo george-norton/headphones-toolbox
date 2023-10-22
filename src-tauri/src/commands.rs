@@ -6,7 +6,7 @@ use crate::{Preprocessing, model::Filters, Codec};
 
 
 pub trait Command {
-    fn as_buf(&self) -> Vec<u8>;
+    fn write_as_binary(&self, buf: impl Write);
 }
 
 #[repr(u16)]
@@ -44,11 +44,9 @@ impl GetVersion {
 }
 
 impl Command for GetVersion {
-    fn as_buf(&self) -> Vec<u8> {
-        let mut buf = Vec::new();
-        buf.extend_from_slice(&(StructureTypes::GetVersion as u16).to_le_bytes());
-        buf.extend_from_slice(&(4u16).to_le_bytes());
-        buf
+    fn write_as_binary(&self, mut buf: impl Write) {
+        let _ = buf.write(&(StructureTypes::GetVersion as u16).to_le_bytes());
+        let _ = buf.write(&(4u16).to_le_bytes());
     }
 }
 
@@ -61,13 +59,11 @@ impl<'a> SetPreprocessingConfiguration<'a> {
 }
 
 impl Command for SetPreprocessingConfiguration<'_> {
-    fn as_buf(&self) -> Vec<u8> {
+    fn write_as_binary(&self, mut buf: impl Write) {
         let payload = self.0.to_payload();
-        let mut buf = Vec::new();
-        buf.extend_from_slice(&(StructureTypes::PreProcessingConfiguration as u16).to_le_bytes());
-        buf.extend_from_slice(&((4 + payload.len()) as u16).to_le_bytes());
-        buf.extend_from_slice(&payload);
-        buf
+        let _ = buf.write(&(StructureTypes::PreProcessingConfiguration as u16).to_le_bytes());
+        let _ = buf.write(&((4 + payload.len()) as u16).to_le_bytes());
+        let _ = buf.write(&payload);
     }
 }
 
@@ -80,13 +76,11 @@ impl<'a> SetFilterConfiguration<'a> {
 }
 
 impl Command for SetFilterConfiguration<'_> {
-    fn as_buf(&self) -> Vec<u8> {
+    fn write_as_binary(&self, mut buf: impl Write) {
         let payload = self.0.to_payload();
-        let mut buf = Vec::new();
-        buf.extend_from_slice(&(StructureTypes::FilterConfiguration as u16).to_le_bytes());
-        buf.extend_from_slice(&((4 + payload.len()) as u16).to_le_bytes());
-        buf.extend_from_slice(&payload);
-        buf
+        let _ = buf.write(&(StructureTypes::FilterConfiguration as u16).to_le_bytes());
+        let _ = buf.write(&((4 + payload.len()) as u16).to_le_bytes());
+        let _ = buf.write(&payload);
     }
 }
 
@@ -99,13 +93,11 @@ impl<'a> SetPcm3060Configuration<'a> {
 }
 
 impl Command for SetPcm3060Configuration<'_> {
-    fn as_buf(&self) -> Vec<u8> {
+    fn write_as_binary(&self, mut buf: impl Write) {
         let payload = self.0.to_payload();
-        let mut buf = Vec::new();
-        buf.extend_from_slice(&(StructureTypes::Pcm3060Configuration as u16).to_le_bytes());
-        buf.extend_from_slice(&((4 + payload.len()) as u16).to_le_bytes());
-        buf.extend_from_slice(&payload);
-        buf
+        let _ = buf.write(&(StructureTypes::Pcm3060Configuration as u16).to_le_bytes());
+        let _ = buf.write(&((4 + payload.len()) as u16).to_le_bytes());
+        let _ = buf.write(&payload);
     }
 }
 
@@ -126,19 +118,17 @@ impl<'a, 'b, 'c> SetConfiguration<'a, 'b, 'c> {
 }
 
 impl Command for SetConfiguration<'_, '_, '_> {
-    fn as_buf(&self) -> Vec<u8> {
-        let mut buf: Vec<u8> = Vec::new();
-        buf.extend_from_slice(&(StructureTypes::SetConfiguration as u16).to_le_bytes());
-        buf.extend_from_slice(
+    fn write_as_binary(&self, mut buf: impl Write) {
+        let _ = buf.write(&(StructureTypes::SetConfiguration as u16).to_le_bytes());
+        let _ = buf.write(
             &((16 + self.filter.0.to_payload().len() 
             + self.preprocessing.0.to_payload().len() 
             + self.codec.0.to_payload().len()) as u16)
                 .to_le_bytes(),
         );
-        buf.extend_from_slice(&self.preprocessing.as_buf());
-        buf.extend_from_slice(&self.filter.as_buf());
-        buf.extend_from_slice(&self.codec.as_buf());
-        buf
+        let _ = &self.preprocessing.write_as_binary(&mut buf);
+        let _ = &self.filter.write_as_binary(&mut buf);
+        let _ = &self.codec.write_as_binary(&mut buf);
     }
 }
 
@@ -151,11 +141,9 @@ impl FactoryReset {
 }
 
 impl Command for FactoryReset {
-    fn as_buf(&self) -> Vec<u8> {
-        let mut buf: Vec<u8> = Vec::new();
-        buf.extend_from_slice(&(StructureTypes::FactoryReset as u16).to_le_bytes());
-        buf.extend_from_slice(&(4u16).to_le_bytes());
-        buf
+    fn write_as_binary(&self, mut buf: impl Write) {
+        let _ = buf.write(&(StructureTypes::FactoryReset as u16).to_le_bytes());
+        let _ = buf.write(&(4u16).to_le_bytes());
     }
 }
 
@@ -168,11 +156,9 @@ impl SaveConfiguration {
 }
 
 impl Command for SaveConfiguration {
-    fn as_buf(&self) -> Vec<u8> {
-        let mut buf: Vec<u8> = Vec::new();
-        buf.extend_from_slice(&(StructureTypes::SaveConfiguration as u16).to_le_bytes());
-        buf.extend_from_slice(&(4u16).to_le_bytes());
-        buf
+    fn write_as_binary(&self, mut buf: impl Write) {
+        let _ = buf.write(&(StructureTypes::SaveConfiguration as u16).to_le_bytes());
+        let _ = buf.write(&(4u16).to_le_bytes());
     }
 }
 
@@ -185,10 +171,87 @@ impl GetStoredConfiguration {
 }
 
 impl Command for GetStoredConfiguration {
-    fn as_buf(&self) -> Vec<u8> {
+    fn write_as_binary(&self, mut buf: impl Write) {
+        let _ = buf.write(&(StructureTypes::GetStoredConfiguration as u16).to_le_bytes());
+        let _ = buf.write(&(4u16).to_le_bytes());
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn get_version_works() {
         let mut buf: Vec<u8> = Vec::new();
-        buf.extend_from_slice(&(StructureTypes::GetStoredConfiguration as u16).to_le_bytes());
-        buf.extend_from_slice(&(4u16).to_le_bytes());
-        buf
+        GetVersion::new().write_as_binary(&mut buf);
+        assert!(buf.len() > 0, "Command didn't write anything");
+        assert_eq!(buf.as_slice(), &[3, 0, 4, 0], "Wrong data");
+    }
+
+    #[test]
+    fn preprocessing_works() {
+        let mut buf = Vec::new();
+        let config = Preprocessing::new(0.0, 0.0, false);
+        SetPreprocessingConfiguration::new(&config).write_as_binary(&mut buf);
+        assert!(buf.len() > 0, "Command didn't write anything");
+        assert_eq!(buf.as_slice(), &[0, 2, 16, 0, 0, 0, 128, 191, 0, 0, 128, 191, 0, 0, 0, 0], "Wrong data");
+    }
+
+    #[test]
+    fn filter_works() {
+        let mut buf = Vec::new();
+        let config = Filters::default();
+        SetFilterConfiguration::new(&config).write_as_binary(&mut buf);
+        assert!(buf.len() > 0, "Command didn't write anything");
+        assert_eq!(buf.as_slice(), &[1, 2, 4, 0], "Wrong data");
+    }
+
+    #[test]
+    fn codec_works() {
+        let mut buf = Vec::new();
+        let config = Codec::default();
+        SetPcm3060Configuration::new(&config).write_as_binary(&mut buf);
+        assert!(buf.len() > 0, "Command didn't write anything");
+        assert_eq!(buf.as_slice(), &[2, 2, 8, 0, 0, 0, 0, 0], "Wrong data")
+    }
+
+    #[test]
+    fn configuration_works() {
+        let mut buf = Vec::new();
+        let prep_config = Preprocessing::new(0.0, 0.0, false);
+        let filters_config = Filters::default();
+        let codec_config = Codec::default();
+
+        let prep = SetPreprocessingConfiguration::new(&prep_config);
+        let filters = SetFilterConfiguration::new(&filters_config);
+        let codec = SetPcm3060Configuration::new(&codec_config);
+        SetConfiguration::new(prep, filters, codec).write_as_binary(&mut buf);
+        assert!(buf.len() > 0, "Command didn't write anything");
+        assert_eq!(buf.as_slice(), &[4, 0, 32, 0, 0, 2, 16, 0, 0, 0, 128, 191, 0, 0, 128, 191, 0, 0, 0, 0, 1, 2, 4, 0, 2, 2, 8, 0, 0, 0, 0, 0], "Wrong data")
+    }
+
+    #[test]
+    fn reset_works() {
+        let mut buf = Vec::new();
+        FactoryReset::new().write_as_binary(&mut buf);
+        assert!(buf.len() > 0, "Command didn't write anything");
+        assert_eq!(buf.as_slice(), &[8, 0, 4, 0], "Wrong data")
+    }
+
+    #[test]
+    fn save_config_works() {
+        let mut buf = Vec::new();
+        SaveConfiguration::new().write_as_binary(&mut buf);
+        assert!(buf.len() > 0, "Command didn't write anything");
+        assert_eq!(buf.as_slice(), &[7, 0, 4, 0], "Wrong data")
+    }
+
+    #[test]
+    fn get_config_works() {
+        let mut buf = Vec::new();
+        GetStoredConfiguration::new().write_as_binary(&mut buf);
+        assert!(buf.len() > 0, "Command didn't write anything");
+        assert_eq!(buf.as_slice(), &[6, 0, 4, 0], "Wrong data")
     }
 }
