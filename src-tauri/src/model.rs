@@ -166,7 +166,7 @@ impl Filter {
 
     pub fn payload(&self) -> Vec<u8> {
         let mut filter_payload = Vec::new();
-        filter_payload.push(self.discriminant() as u8);
+        filter_payload.push(self.discriminant());
         filter_payload.extend_from_slice(&[0u8; 3]);
 
         match self {

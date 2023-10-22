@@ -249,7 +249,7 @@ export default {
           }
         }
 
-        invoke('write_config', { config: sendConfig }).then((message) => {})
+        invoke('write_config', { config: sendConfig }).then(() => {})
       }
     }, 5),
     saveState: debounce(function () {

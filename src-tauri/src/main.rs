@@ -31,12 +31,11 @@ use tauri::Manager;
 use window_shadows::set_shadow;
 
 // Logging
-use log::{debug, error, info, warn};
+use log::{error, info, warn};
 extern crate simplelog;
 use simplelog::*;
 use std::fs;
 use std::fs::File;
-use tauri::PathResolver;
 
 mod commands;
 mod model;
@@ -304,17 +303,19 @@ fn send_cmd(
 fn write_config(
     config: Config,
     connection_state: State<'_, Mutex<ConnectionState>>,
-) -> Result<bool, String> {
+) -> Result<(), String> {
     let prep = SetPreprocessingConfiguration::new(&config.preprocessing);
     let filters = SetFilterConfiguration::new(&config.filters);
     let codec = SetPcm3060Configuration::new(&config.codec);
     let cmd = SetConfiguration::new(prep, filters, codec);
-    send_cmd(connection_state, cmd).map(|_| true)
+    send_cmd(connection_state, cmd)?;
+    Ok(())
 }
 
 #[tauri::command]
-fn save_config(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<bool, String> {
-    send_cmd(connection_state, SaveConfiguration::new()).map(|_| true)
+fn save_config(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<(), String> {
+    send_cmd(connection_state, SaveConfiguration::new())?;
+    Ok(())
 }
 
 #[tauri::command]
@@ -379,8 +380,9 @@ fn load_config(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<Co
 }
 
 #[tauri::command]
-fn factory_reset(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<bool, String> {
-    send_cmd(connection_state, FactoryReset::new()).map(|_| true)
+fn factory_reset(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<(), String> {
+    send_cmd(connection_state, FactoryReset::new())?;
+    Ok(())
 }
 
 #[tauri::command]
@@ -401,7 +403,7 @@ fn reboot_bootloader(connection_state: State<Mutex<ConnectionState>>) -> Result<
     );
     info!("Reboot Device: {}", r.is_err());
 
-    return Ok(());
+    Ok(())
 }
 
 #[tauri::command]
@@ -464,7 +466,7 @@ fn open(
             None => continue,
         }
     }
-    return Err("Unknown error".to_owned());
+    Err("Unknown error".to_owned())
 }
 
 #[tauri::command]
