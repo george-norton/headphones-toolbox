@@ -251,14 +251,6 @@ export default {
           }
         }
 
-        for (var f in sendConfig.filters) {
-          console.log(f)
-          if (sendConfig.filters[f].filter_type == FilterTypes.CUSTOMIIR) {
-            sendConfig.filters[f].type = "Custom"
-          } else {
-            sendConfig.filters[f].type = "Normal"
-          }
-        }
         invoke('write_config', { config: JSON.stringify(sendConfig) }).then((message) => {
         })
       }
