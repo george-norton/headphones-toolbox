@@ -1,6 +1,15 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 use byteorder::{LittleEndian, ReadBytesExt};
+use commands::Command;
+use commands::FactoryReset;
+use commands::GetStoredConfiguration;
+use commands::GetVersion;
+use commands::SaveConfiguration;
+use commands::SetConfiguration;
+use commands::SetFilterConfiguration;
+use commands::SetPcm3060Configuration;
+use commands::SetPreprocessingConfiguration;
 use model::Filter;
 use model::Filters;
 use model::StructureTypes;
@@ -30,6 +39,7 @@ use std::fs::File;
 use tauri::PathResolver;
 
 mod model;
+mod commands;
 
 pub const LIBUSB_RECIPIENT_DEVICE: u8 = 0x00;
 pub const LIBUSB_REQUEST_TYPE_VENDOR: u8 = 0x02 << 5;
@@ -115,7 +125,7 @@ fn find_configuration_endpoints<T: UsbContext>(
 }
 
 #[derive(Serialize, Deserialize, Default, Debug)]
-struct Preprocessing {
+pub struct Preprocessing {
     preamp: f32,
     postEQGain: f32,
     reverse_stereo: bool,
@@ -149,7 +159,7 @@ impl Preprocessing {
 }
 
 #[derive(Serialize, Deserialize, Default, Debug)]
-struct Codec {
+pub struct Codec {
     oversampling: bool,
     phase: bool,
     rolloff: bool,
@@ -229,8 +239,9 @@ impl VersionInfo {
 
 fn send_cmd(
     connection_state: State<'_, Mutex<ConnectionState>>,
-    buf: &[u8],
+    cmd: impl Command,
 ) -> Result<[u8; MAX_CFG_LEN], String> {
+    let buf = cmd.as_buf();
     let mut connection = connection_state.lock().unwrap();
 
     let device = match &connection.connected {
@@ -289,37 +300,16 @@ fn write_config(
     config: Config,
     connection_state: State<'_, Mutex<ConnectionState>>,
 ) -> Result<bool, String> {
-    info!("write_config");
-    println!("write_config");
-    let filter_payload: Vec<u8> = config.filters.to_payload();
-    let preprocessing_payload: Vec<u8> = config.preprocessing.to_payload();
-    let codec_payload = config.codec.to_payload();
-
-    let mut buf: Vec<u8> = Vec::new();
-    buf.extend_from_slice(&(StructureTypes::SetConfiguration as u16).to_le_bytes());
-    buf.extend_from_slice(
-        &((16 + filter_payload.len() + preprocessing_payload.len() + codec_payload.len()) as u16)
-            .to_le_bytes(),
-    );
-    buf.extend_from_slice(&(StructureTypes::PreProcessingConfiguration as u16).to_le_bytes());
-    buf.extend_from_slice(&((4 + preprocessing_payload.len()) as u16).to_le_bytes());
-    buf.extend_from_slice(&preprocessing_payload);
-    buf.extend_from_slice(&(StructureTypes::FilterConfiguration as u16).to_le_bytes());
-    buf.extend_from_slice(&((4 + filter_payload.len()) as u16).to_le_bytes());
-    buf.extend_from_slice(&filter_payload);
-    buf.extend_from_slice(&(StructureTypes::Pcm3060Configuration as u16).to_le_bytes());
-    buf.extend_from_slice(&((4 + codec_payload.len()) as u16).to_le_bytes());
-    buf.extend_from_slice(&codec_payload);
-
-    send_cmd(connection_state, &buf).map(|_| true)
+    let prep = SetPreprocessingConfiguration::new(&config.preprocessing);
+    let filters = SetFilterConfiguration::new(&config.filters);
+    let codec = SetPcm3060Configuration::new(&config.codec);
+    let cmd = SetConfiguration::new(prep, filters, codec);
+    send_cmd(connection_state, cmd).map(|_| true)
 }
 
 #[tauri::command]
 fn save_config(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<bool, String> {
-    let mut buf: Vec<u8> = Vec::new();
-    buf.extend_from_slice(&(StructureTypes::SaveConfiguration as u16).to_le_bytes());
-    buf.extend_from_slice(&(4u16).to_le_bytes());
-    send_cmd(connection_state, &buf).map(|_| true)
+    send_cmd(connection_state, SaveConfiguration::new()).map(|_| true)
 }
 
 #[tauri::command]
@@ -328,7 +318,7 @@ fn load_config(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<Co
     buf.extend_from_slice(&(StructureTypes::GetStoredConfiguration as u16).to_le_bytes());
     buf.extend_from_slice(&(4u16).to_le_bytes());
 
-    let binding = send_cmd(connection_state, &buf);
+    let binding = send_cmd(connection_state, GetStoredConfiguration::new());
     let cfg = match &binding {
         Ok(x) => x,
         Err(e) => {
@@ -385,11 +375,7 @@ fn load_config(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<Co
 
 #[tauri::command]
 fn factory_reset(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<bool, String> {
-    let mut buf: Vec<u8> = Vec::new();
-    buf.extend_from_slice(&(StructureTypes::FactoryReset as u16).to_le_bytes());
-    buf.extend_from_slice(&(4u16).to_le_bytes());
-
-    send_cmd(connection_state, &buf).map(|_| true)
+    send_cmd(connection_state, FactoryReset::new()).map(|_| true)
 }
 
 #[tauri::command]
@@ -415,11 +401,7 @@ fn reboot_bootloader(connection_state: State<Mutex<ConnectionState>>) -> Result<
 
 #[tauri::command]
 fn read_version_info(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<VersionInfo, String> {
-    let mut buf: Vec<u8> = Vec::new();
-    buf.extend_from_slice(&(StructureTypes::GetVersion as u16).to_le_bytes());
-    buf.extend_from_slice(&(4u16).to_le_bytes());
-
-    let v = send_cmd(connection_state, &buf)?;
+    let v = send_cmd(connection_state, GetVersion::new())?;
     let version = VersionInfo::from_buf(&v)?;
     Ok(version)
 }

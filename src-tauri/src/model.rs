@@ -5,7 +5,7 @@ use byteorder::{LittleEndian, ReadBytesExt};
 use serde::{Deserialize, Serialize};
 
 #[repr(u16)]
-#[allow(dead_code)]
+// #[allow(dead_code)]
 pub enum StructureTypes {
     // Commands/Responses, these are container TLVs. The Value will be a set of TLV structures.
     OK = 0,      // Standard response when a command was successful
