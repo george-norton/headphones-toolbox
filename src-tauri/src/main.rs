@@ -2,6 +2,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 use byteorder::{LittleEndian, ReadBytesExt};
 use model::Filter;
+use model::Filters;
 use model::StructureTypes;
 use rusb::{Device, DeviceHandle, Direction, UsbContext};
 use serde::{Deserialize, Serialize};
@@ -129,7 +130,7 @@ impl Preprocessing {
         }
     }
 
-    fn to_buf(&self) -> Vec<u8> {
+    fn to_payload(&self) -> Vec<u8> {
         let mut preprocessing_payload: Vec<u8> = Vec::new();
         // TODO: -1.0 as the firmware adds 1, cleanup later. Consider storing this value without the subtraction
         // to eliminate a math op and make the code more grokable?
@@ -165,7 +166,7 @@ impl Codec {
         }
     }
 
-    fn to_buf(&self) -> Vec<u8> {
+    fn to_payload(&self) -> Vec<u8> {
         vec![
             self.oversampling as u8,
             self.phase as u8,
@@ -178,7 +179,7 @@ impl Codec {
 #[derive(Serialize, Deserialize, Default, Debug)]
 struct Config {
     preprocessing: Preprocessing,
-    filters: Vec<Filter>,
+    filters: Filters,
     codec: Codec,
 }
 
@@ -300,15 +301,9 @@ fn write_config(
         }
     };
 
-    let mut filter_payload: Vec<u8> = Vec::new();
-    for filter in cfg.filters.iter().filter(|f| f.enabled()) {
-        filter_payload.extend_from_slice(&filter.payload());
-    }
-
-    dbg!(&cfg.filters);
-
-    let preprocessing_payload: Vec<u8> = cfg.preprocessing.to_buf();
-    let codec_payload = cfg.codec.to_buf();
+    let filter_payload: Vec<u8> = cfg.filters.to_payload();
+    let preprocessing_payload: Vec<u8> = cfg.preprocessing.to_payload();
+    let codec_payload = cfg.codec.to_payload();
 
     let mut buf: Vec<u8> = Vec::new();
     buf.extend_from_slice(&(StructureTypes::SetConfiguration as u16).to_le_bytes());
@@ -387,7 +382,7 @@ fn load_config(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<St
             x if x == StructureTypes::FilterConfiguration as u16 => {
                 let end = cur.position() + (length_val - 4) as u64;
                 while cur.position() < end {
-                    cfg.filters.push(Filter::from_bytes(&mut cur)?)
+                    cfg.filters.add(Filter::from_bytes(&mut cur)?)
                 }
 
                 if cur.position() != end {

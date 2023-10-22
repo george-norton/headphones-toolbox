@@ -203,8 +203,12 @@ impl Filter {
         let filter = match filter_type {
             x if x == FilterType::Lowpass as u8 => Self::Lowpass(ReadFilter::from_reader(cur)),
             x if x == FilterType::Highpass as u8 => Self::Highpass(ReadFilter::from_reader(cur)),
-            x if x == FilterType::BandpassSkirt as u8 => Self::BandpassSkirt(ReadFilter::from_reader(cur)),
-            x if x == FilterType::BandpassPeak as u8 => Self::BandpassPeak(ReadFilter::from_reader(cur)),
+            x if x == FilterType::BandpassSkirt as u8 => {
+                Self::BandpassSkirt(ReadFilter::from_reader(cur))
+            }
+            x if x == FilterType::BandpassPeak as u8 => {
+                Self::BandpassPeak(ReadFilter::from_reader(cur))
+            }
             x if x == FilterType::Notch as u8 => Self::Notch(ReadFilter::from_reader(cur)),
             x if x == FilterType::Allpass as u8 => Self::Allpass(ReadFilter::from_reader(cur)),
             x if x == FilterType::Peaking as u8 => Self::Peaking(ReadFilter::from_reader(cur)),
@@ -225,5 +229,22 @@ impl Filter {
         );
 
         Ok(filter)
+    }
+}
+
+#[derive(Serialize, Deserialize, Default, Debug)]
+pub struct Filters(Vec<Filter>);
+
+impl Filters {
+    pub fn to_payload(&self) -> Vec<u8> {
+        self.0
+            .iter()
+            .filter(|f| f.enabled())
+            .flat_map(|f| f.payload())
+            .collect()
+    }
+
+    pub fn add(&mut self, filter: Filter) {
+        self.0.push(filter);
     }
 }
