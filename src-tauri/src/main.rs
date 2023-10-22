@@ -230,14 +230,14 @@ impl VersionInfo {
 fn send_cmd(
     connection_state: State<'_, Mutex<ConnectionState>>,
     buf: &[u8],
-) -> Result<[u8; MAX_CFG_LEN], &'static str> {
+) -> Result<[u8; MAX_CFG_LEN], String> {
     let mut connection = connection_state.lock().unwrap();
 
     let device = match &connection.connected {
         Some(x) => x,
         None => {
             info!("The device is not connected.");
-            return Err("Not connected");
+            return Err("Not connected".to_owned());
         }
     };
 
@@ -246,13 +246,12 @@ fn send_cmd(
     //println!("Write {} bytes to {}", buf.len(), interface.output);
     match device
         .device_handle
-        .write_bulk(interface.output, &buf, USB_TIMEOUT)
-    {
-        Ok(_len) => (),
+        .write_bulk(interface.output, &buf, USB_TIMEOUT) {
+        Ok(_) => (),
         Err(err) => {
             error!("Failed to write to the configuration interface: {}", err);
             connection.error = true;
-            return Err("Failed to write to the configuration interface");
+            return Err("Failed to write to the configuration interface".to_owned());
         }
     }
 
@@ -271,16 +270,14 @@ fn send_cmd(
                     length = u16::from_le_bytes(length_bytes);
                     //println!("Length: {}", length);
                     if usize::from(length) > MAX_CFG_LEN {
-                        error!("Overflow reading from the config interface, got {} bytes, max size is {} bytes.", length, MAX_CFG_LEN);
-                        return Err("Overflow error");
+                        return Err(format!("Overflow reading from the config interface, got {} bytes, max size is {} bytes.", length, MAX_CFG_LEN));
                     }
                 }
                 read_length += len as u16;
             }
             Err(err) => {
-                error!("Error reading from the configuration inteface: {}", err);
                 connection.error = true;
-                return Err("Read Error");
+                return Err(format!("Error reading from the configuration inteface: {}", err));
             }
         }
     }
@@ -289,21 +286,14 @@ fn send_cmd(
 
 #[tauri::command]
 fn write_config(
-    config: &str,
+    config: Config,
     connection_state: State<'_, Mutex<ConnectionState>>,
-) -> Result<bool, ()> {
-    let cfg = match serde_json::from_str::<Config>(config) {
-        Ok(x) => x,
-        Err(e) => {
-            error!("Error serializing config: {}", e);
-            info!("{}", config);
-            return Ok(false);
-        }
-    };
-
-    let filter_payload: Vec<u8> = cfg.filters.to_payload();
-    let preprocessing_payload: Vec<u8> = cfg.preprocessing.to_payload();
-    let codec_payload = cfg.codec.to_payload();
+) -> Result<bool, String> {
+    info!("write_config");
+    println!("write_config");
+    let filter_payload: Vec<u8> = config.filters.to_payload();
+    let preprocessing_payload: Vec<u8> = config.preprocessing.to_payload();
+    let codec_payload = config.codec.to_payload();
 
     let mut buf: Vec<u8> = Vec::new();
     buf.extend_from_slice(&(StructureTypes::SetConfiguration as u16).to_le_bytes());
@@ -321,32 +311,19 @@ fn write_config(
     buf.extend_from_slice(&((4 + codec_payload.len()) as u16).to_le_bytes());
     buf.extend_from_slice(&codec_payload);
 
-    match &send_cmd(connection_state, &buf) {
-        Ok(_) => return Ok(true), // TODO: Check for NOK
-        Err(e) => {
-            error!("Error writing config: {}", e);
-            return Err(());
-        }
-    }
+    send_cmd(connection_state, &buf).map(|_| true)
 }
 
 #[tauri::command]
-fn save_config(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<bool, ()> {
+fn save_config(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<bool, String> {
     let mut buf: Vec<u8> = Vec::new();
     buf.extend_from_slice(&(StructureTypes::SaveConfiguration as u16).to_le_bytes());
     buf.extend_from_slice(&(4u16).to_le_bytes());
-
-    match &send_cmd(connection_state, &buf) {
-        Ok(_) => return Ok(true), // TODO: Check for NOK
-        Err(e) => {
-            error!("Error saving config: {}", e);
-            return Err(());
-        }
-    }
+    send_cmd(connection_state, &buf).map(|_| true)
 }
 
 #[tauri::command]
-fn load_config(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<String, ()> {
+fn load_config(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<Config, String> {
     let mut buf: Vec<u8> = Vec::new();
     buf.extend_from_slice(&(StructureTypes::GetStoredConfiguration as u16).to_le_bytes());
     buf.extend_from_slice(&(4u16).to_le_bytes());
@@ -356,8 +333,7 @@ fn load_config(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<St
         Ok(x) => x,
         Err(e) => {
             // TODO: Check for NOK
-            error!("Error reading config: {}", e);
-            return Err(());
+            return Err(format!("Error reading config: {}", e));
         }
     };
 
@@ -386,8 +362,7 @@ fn load_config(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<St
                 }
 
                 if cur.position() != end {
-                    error!("Read off the end of the filters TLV");
-                    return Err(());
+                    return Err("Read off the end of the filters TLV".to_owned());
                 }
             }
             x if x == StructureTypes::Pcm3060Configuration as u16 => {
@@ -405,82 +380,56 @@ fn load_config(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<St
         position += length_val;
         cur.set_position(position as u64);
     }
-    Ok(serde_json::to_string(&cfg).unwrap())
+    Ok(cfg)
 }
 
 #[tauri::command]
-fn factory_reset(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<bool, ()> {
+fn factory_reset(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<bool, String> {
     let mut buf: Vec<u8> = Vec::new();
     buf.extend_from_slice(&(StructureTypes::FactoryReset as u16).to_le_bytes());
     buf.extend_from_slice(&(4u16).to_le_bytes());
 
-    match &send_cmd(connection_state, &buf) {
-        Ok(_r) => return Ok(true), // TODO: Check for NOK
-        Err(e) => {
-            error!("Factory reset error: {}", e);
-            return Err(());
-        }
-    }
+    send_cmd(connection_state, &buf).map(|_| true)
 }
 
 #[tauri::command]
-fn reboot_bootloader(connection_state: State<Mutex<ConnectionState>>) -> bool {
+fn reboot_bootloader(connection_state: State<Mutex<ConnectionState>>) -> Result<(), String> {
     let connection = connection_state.lock().unwrap();
-    match &connection.connected {
-        Some(device) => {
-            let buf: [u8; 0] = [];
-            let r = device.device_handle.write_control(
-                LIBUSB_RECIPIENT_DEVICE | LIBUSB_REQUEST_TYPE_VENDOR,
-                0,
-                0x2e8a,
-                0,
-                &buf,
-                USB_TIMEOUT,
-            );
-            info!("Reboot Device: {}", r.is_err());
+    let device = match &connection.connected {
+        Some(x) => x,
+        None => return Err("No connection".to_owned()),
+    };
 
-            return true;
-        }
-        None => {
-            warn!("No connection");
-            return false;
-        }
-    }
+    let r = device.device_handle.write_control(
+        LIBUSB_RECIPIENT_DEVICE | LIBUSB_REQUEST_TYPE_VENDOR,
+        0,
+        0x2e8a,
+        0,
+        &[],
+        USB_TIMEOUT,
+    );
+    info!("Reboot Device: {}", r.is_err());
+
+    return Ok(());
 }
 
 #[tauri::command]
-fn read_version_info(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<String, ()> {
+fn read_version_info(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<VersionInfo, String> {
     let mut buf: Vec<u8> = Vec::new();
     buf.extend_from_slice(&(StructureTypes::GetVersion as u16).to_le_bytes());
     buf.extend_from_slice(&(4u16).to_le_bytes());
 
-    let binding = send_cmd(connection_state, &buf);
-    let v = match &binding {
-        Ok(x) => x,
-        Err(e) => {
-            error!("Error reading device version information: {}", e);
-            return Err(());
-        }
-    };
-
-    let version = VersionInfo::from_buf(v).unwrap();
-    Ok(serde_json::to_string(&version).unwrap())
+    let v = send_cmd(connection_state, &buf)?;
+    let version = VersionInfo::from_buf(&v)?;
+    Ok(version)
 }
 
 #[tauri::command]
-fn open(serial_number: &str, connection_state: State<Mutex<ConnectionState>>) -> bool {
-    let context = match rusb::Context::new() {
-        Ok(c) => c,
-        Err(e) => panic!("libusb::Context::new(): {}", e),
-    };
+fn open(serial_number: &str, connection_state: State<Mutex<ConnectionState>>) -> Result<(), String> {
+    let context = rusb::Context::new().expect("Can't create libusb::Context::new()");
 
-    let devices = match context.devices() {
-        Ok(d) => d,
-        Err(e) => {
-            error!("Device not found: {}", e);
-            return false;
-        }
-    };
+    let devices = context.devices()
+        .map_err(|e| format!("Device not found: {}", e))?;
 
     let mut connection = connection_state.lock().unwrap();
     connection.connected = None;
@@ -498,8 +447,7 @@ fn open(serial_number: &str, connection_state: State<Mutex<ConnectionState>>) ->
                                     i
                                 }
                                 None => {
-                                    println!("Could not detect a configuration interface");
-                                    return false;
+                                    return Err("Could not detect a configuration interface".to_owned());
                                 }
                             };
                             info!(
@@ -510,11 +458,10 @@ fn open(serial_number: &str, connection_state: State<Mutex<ConnectionState>>) ->
                                 device_handle: handle,
                                 configuration_interface: interface,
                             });
-                            return true;
+                            return Ok(());
                         }
                         Err(e) => {
-                            error!("Could not open {}", e);
-                            return false;
+                            return Err(format!("Could not open {}", e));
                         }
                     }
                 }
@@ -522,11 +469,11 @@ fn open(serial_number: &str, connection_state: State<Mutex<ConnectionState>>) ->
             None => continue,
         }
     }
-    return false;
+    return Err("Unknown error".to_owned());
 }
 
 #[tauri::command]
-fn poll_devices(connection_state: State<Mutex<ConnectionState>>) -> String {
+fn poll_devices(connection_state: State<Mutex<ConnectionState>>) -> PollDeviceStatus {
     let mut status = PollDeviceStatus::new();
     let mut known_devices: HashSet<u16> = connection_state
         .lock()
@@ -540,16 +487,13 @@ fn poll_devices(connection_state: State<Mutex<ConnectionState>>) -> String {
     status.error = connection_state.lock().unwrap().error;
     connection_state.lock().unwrap().error = false;
 
-    let context = match rusb::Context::new() {
-        Ok(c) => c,
-        Err(e) => panic!("libusb::Context::new(): {}", e),
-    };
+    let context = rusb::Context::new().expect("Can't create libusb::Context::new()");
 
     let devices = match context.devices() {
         Ok(d) => d,
         Err(_) => {
             status.error = true;
-            return serde_json::to_string(&status).unwrap();
+            return status;
         }
     };
 
@@ -570,33 +514,34 @@ fn poll_devices(connection_state: State<Mutex<ConnectionState>>) -> String {
 
         if device_desc.vendor_id() == 0x2e8a && device_desc.product_id() == 0xfedd {
             info!("New device found at address {}", address);
-            match device.open() {
-                Ok(handle) => {
-                    let serial_number_string_index =
-                        device_desc.serial_number_string_index().unwrap();
-                    let serial_number =
-                        handle.read_string_descriptor_ascii(serial_number_string_index);
-                    match serial_number {
-                        Ok(sn) => {
-                            info!("Device {} has serial number {}", address, sn);
-                            connection_state
-                                .lock()
-                                .unwrap()
-                                .serial_numbers
-                                .insert(address, sn.clone());
-                            status.device_list.push(sn);
-                        }
-                        Err(e) => {
-                            error!("Get serial number failed {}", e);
-                            continue;
-                        }
-                    }
-                }
+            let handle = match device.open() {
+                Ok(x) => x,
                 Err(e) => {
                     error!("Open failed {}", e);
                     continue;
                 }
-            }
+            };
+
+            let serial_number_string_index =
+                device_desc.serial_number_string_index().unwrap();
+            let serial_number =
+                handle.read_string_descriptor_ascii(serial_number_string_index);
+
+            let sn = match serial_number {
+                Ok(x) => x,
+                Err(e) => {
+                    error!("Get serial number failed {}", e);
+                    continue;
+                }
+            };
+
+            info!("Device {} has serial number {}", address, sn);
+            connection_state
+                .lock()
+                .unwrap()
+                .serial_numbers
+                .insert(address, sn.clone());
+            status.device_list.push(sn);
         }
     }
 
@@ -610,7 +555,7 @@ fn poll_devices(connection_state: State<Mutex<ConnectionState>>) -> String {
             .remove(&address);
     }
 
-    serde_json::to_string(&status).unwrap()
+    status
 }
 
 fn main() {

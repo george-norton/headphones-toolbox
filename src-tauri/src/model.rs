@@ -196,7 +196,7 @@ impl Filter {
         filter_payload
     }
 
-    pub fn from_bytes(mut cur: impl Read + Seek) -> Result<Self, ()> {
+    pub fn from_bytes(mut cur: impl Read + Seek) -> Result<Self, String> {
         let filter_type = cur.read_u8().unwrap();
         let _ = cur.seek(SeekFrom::Current(3)); // reserved bytes
 
@@ -216,8 +216,7 @@ impl Filter {
             x if x == FilterType::HighShelf as u8 => Self::HighShelf(ReadFilter::from_reader(cur)),
             x if x == FilterType::CustomIIR as u8 => Self::CustomIIR(ReadFilter::from_reader(cur)),
             other => {
-                error!("Unknown filter type: {}", other);
-                return Err(());
+                return Err(format!("Unknown filter type: {}", other));
             }
         };
 

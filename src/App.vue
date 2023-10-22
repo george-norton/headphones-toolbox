@@ -62,7 +62,7 @@ export default {
       if (this.connected) {
         this.sendState()
         invoke("read_version_info").then((version) => {
-          this.versions = { ...JSON.parse(version), ...{ "serial_number": this.device, "client_api_version": API_VERSION } }
+          this.versions = { ...version, ...{ "serial_number": this.device, "client_api_version": API_VERSION } }
           if (this.versions.minimum_supported_version> API_VERSION) {
             this.$q.notify({ type: 'negative', message: "Firmware is too new, this version of Ploopy Headphones Toolkit is not supported." })
           }
@@ -158,8 +158,7 @@ export default {
       return { height: height }
     },
     readDeviceConfiguration() {
-      invoke("load_config").then((deviceConfig) => {
-        var config = JSON.parse(deviceConfig)
+      invoke("load_config").then((config) => {
         config.id = this.tab
         config.name = this.tabs[this.tab].name
         config.state = structuredClone(toRaw(this.tabs[this.tab].state))
@@ -190,8 +189,7 @@ export default {
         this.tab = nextId
         return;
       }
-      invoke("load_config").then((deviceConfig) => {
-        var config = JSON.parse(deviceConfig)
+      invoke("load_config").then((config) => {
         this.migrateConfig(config)
         config.name = "Unnamed configuration"
         config.id = nextId
@@ -251,8 +249,7 @@ export default {
           }
         }
 
-        invoke('write_config', { config: JSON.stringify(sendConfig) }).then((message) => {
-        })
+        invoke('write_config', { config: sendConfig }).then((message) => {})
       }
     }, 5),
     saveState: debounce(function () {
@@ -372,16 +369,13 @@ export default {
       this.saveState()
     },
     openDevice() {
-      invoke('open', { serialNumber: this.device }).then((result) => {
-        if (result) {
-          this.$q.notify({ type: 'positive', message: "Device connected" })
-          this.connected = true
-        }
+      invoke('open', { serialNumber: this.device }).then(() => {
+        this.$q.notify({ type: 'positive', message: "Device connected" })
+        this.connected = true
       })
     },
     pollDevices() {
-      invoke('poll_devices').then((message) => {
-        var status = JSON.parse(message)
+      invoke('poll_devices').then((status) => {
         for (var d in status.device_list) {
           if (!(status.device_list[d] in deviceNames)) {
             if (status.device_list.length == 1 && !("Ploopy Headphones" in deviceNames)) {
