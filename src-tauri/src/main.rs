@@ -430,43 +430,33 @@ fn open(
     connection.connected = None;
     for device in devices.iter() {
         let address: u16 = ((device.bus_number() as u16) << 8) | (device.address() as u16);
-        match connection.serial_numbers.get(&address) {
-            Some(sn) => {
-                if sn == serial_number {
-                    match device.open() {
-                        Ok(mut handle) => {
-                            let configuration_interface = find_configuration_endpoints(&device);
-                            let interface = match configuration_interface {
-                                Some(i) => {
-                                    handle.claim_interface(i.interface).unwrap();
-                                    i
-                                }
-                                None => {
-                                    return Err(
-                                        "Could not detect a configuration interface".to_owned()
-                                    );
-                                }
-                            };
-                            info!(
-                                "Opened the device at address {}, with serial number {}",
-                                address, sn
-                            );
-                            connection.connected = Some(ConnectedDevice {
-                                device_handle: handle,
-                                configuration_interface: interface,
-                            });
-                            return Ok(());
-                        }
-                        Err(e) => {
-                            return Err(format!("Could not open {}", e));
-                        }
-                    }
-                }
-            }
+        let sn = match connection.serial_numbers.get(&address) {
+            Some(x) => x,
             None => continue,
+        };
+
+        if sn != serial_number {
+            continue;
         }
+
+        let mut handle = device.open().map_err(|e| format!("Could not open {}", e))?;
+        let interface = find_configuration_endpoints(&device)
+            .ok_or_else(|| "Could not detect a configuration interface".to_owned())?;
+        handle
+            .claim_interface(interface.interface)
+            .map_err(|e| format!("Could not claim interface: {}", e))?;
+
+        info!(
+            "Opened the device at address {}, with serial number {}",
+            address, sn
+        );
+        connection.connected = Some(ConnectedDevice {
+            device_handle: handle,
+            configuration_interface: interface,
+        });
+        return Ok(());
     }
-    Err("Unknown error".to_owned())
+    Err("Can't find device".to_owned())
 }
 
 #[tauri::command]
