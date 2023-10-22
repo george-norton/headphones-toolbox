@@ -113,7 +113,7 @@ fn find_configuration_endpoints<T: UsbContext>(
     None
 }
 
-#[derive(Serialize, Deserialize, Default)]
+#[derive(Serialize, Deserialize, Default, Debug)]
 struct Preprocessing {
     preamp: f32,
     postEQGain: f32,
@@ -147,7 +147,7 @@ impl Preprocessing {
     }
 }
 
-#[derive(Serialize, Deserialize, Default)]
+#[derive(Serialize, Deserialize, Default, Debug)]
 struct Codec {
     oversampling: bool,
     phase: bool,
@@ -175,7 +175,7 @@ impl Codec {
     }
 }
 
-#[derive(Serialize, Deserialize, Default)]
+#[derive(Serialize, Deserialize, Default, Debug)]
 struct Config {
     preprocessing: Preprocessing,
     filters: Vec<Filter>,
@@ -304,6 +304,8 @@ fn write_config(
     for filter in cfg.filters.iter().filter(|f| f.enabled()) {
         filter_payload.extend_from_slice(&filter.payload());
     }
+
+    dbg!(&cfg.filters);
 
     let preprocessing_payload: Vec<u8> = cfg.preprocessing.to_buf();
     let codec_payload = cfg.codec.to_buf();

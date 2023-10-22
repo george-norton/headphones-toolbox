@@ -34,7 +34,7 @@ trait ReadFilter: Sized {
     fn from_reader(cur: impl Read) -> Self;
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct FreqGainQualFilter {
     enabled: bool,
     f0: f32,
@@ -56,7 +56,7 @@ impl ReadFilter for FreqGainQualFilter {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct FreqQualFilter {
     enabled: bool,
     f0: f32,
@@ -75,7 +75,7 @@ impl ReadFilter for FreqQualFilter {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct CustomIIRFilter {
     enabled: bool,
     a0: f64,
@@ -120,18 +120,18 @@ enum FilterType {
     CustomIIR,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 #[serde(tag = "filter_type")]
 pub enum Filter {
-    Lowpass(FreqGainQualFilter),
-    Highpass(FreqGainQualFilter),
-    BandpassSkirt(FreqGainQualFilter),
-    BandpassPeak(FreqGainQualFilter),
-    Notch(FreqGainQualFilter),
-    Allpass(FreqGainQualFilter),
-    Peaking(FreqQualFilter),
-    LowShelf(FreqQualFilter),
-    HighShelf(FreqQualFilter),
+    Lowpass(FreqQualFilter),
+    Highpass(FreqQualFilter),
+    BandpassSkirt(FreqQualFilter),
+    BandpassPeak(FreqQualFilter),
+    Notch(FreqQualFilter),
+    Allpass(FreqQualFilter),
+    Peaking(FreqGainQualFilter),
+    LowShelf(FreqGainQualFilter),
+    HighShelf(FreqGainQualFilter),
     CustomIIR(CustomIIRFilter),
 }
 
@@ -177,11 +177,11 @@ impl Filter {
             | Self::Notch(x)
             | Self::Allpass(x) => {
                 filter_payload.extend_from_slice(&x.f0.to_le_bytes());
-                filter_payload.extend_from_slice(&x.db_gain.to_le_bytes());
                 filter_payload.extend_from_slice(&x.q.to_le_bytes());
             }
             Self::Peaking(x) | Self::LowShelf(x) | Self::HighShelf(x) => {
                 filter_payload.extend_from_slice(&x.f0.to_le_bytes());
+                filter_payload.extend_from_slice(&x.db_gain.to_le_bytes());
                 filter_payload.extend_from_slice(&x.q.to_le_bytes());
             }
             Self::CustomIIR(x) => {
