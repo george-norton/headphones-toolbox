@@ -1,12 +1,13 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 use byteorder::{LittleEndian, ReadBytesExt};
+use model::Filter;
+use model::StructureTypes;
 use rusb::{Device, DeviceHandle, Direction, UsbContext};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::default::Default;
-use std::fmt::format;
 use std::io::BufRead;
 use std::io::Cursor;
 use std::io::Seek;
@@ -26,6 +27,8 @@ use simplelog::*;
 use std::fs;
 use std::fs::File;
 use tauri::PathResolver;
+
+mod model;
 
 pub const LIBUSB_RECIPIENT_DEVICE: u8 = 0x00;
 pub const LIBUSB_REQUEST_TYPE_VENDOR: u8 = 0x02 << 5;
@@ -108,160 +111,6 @@ fn find_configuration_endpoints<T: UsbContext>(
         }
     }
     None
-}
-
-#[repr(u16)]
-#[allow(dead_code)]
-enum StructureTypes {
-    // Commands/Responses, these are container TLVs. The Value will be a set of TLV structures.
-    OK = 0,      // Standard response when a command was successful
-    NOK,         // Standard error response
-    FlashHeader, // A special container for the config stored in flash. Hopefully there is some useful
-    // metadata in here to allow us to migrate an old config to a new version.
-    GetVersion, // Returns the current config version, and the minimum supported version so clients
-    // can decide if they can talk to us or not.
-    SetConfiguration, // Updates the active configuration with the supplied TLVs
-    GetActiveConfiguration, // Retrieves the current active configuration TLVs from RAM
-    GetStoredConfiguration, // Retrieves the current stored configuration TLVs from Flash
-    SaveConfiguration, // Writes the active configuration to Flash
-    FactoryReset,     // Invalidates the flash memory
-
-    // Configuration structures, these are returned in the body of a command/response
-    PreProcessingConfiguration = 0x200,
-    FilterConfiguration,
-    Pcm3060Configuration,
-
-    // Status structures, these are returned in the body of a command/response but they are
-    // not persisted as part of the configuration
-    VersionStatus = 0x400,
-}
-
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-enum FilterType {
-    Lowpass = 0,
-    Highpass,
-    BandpassSkirt,
-    BandpassPeak,
-    Notch,
-    Allpass,
-    Peaking,
-    LowShelf,
-    HighShelf,
-    CustomIIR,
-}
-
-impl FilterType {
-    fn num_args(self) -> i32 {
-        match self {
-            Self::Lowpass | Self::Highpass | Self::BandpassSkirt | Self::BandpassPeak | Self::Notch | Self::Allpass => 2,
-            Self::Peaking | Self::LowShelf | Self::HighShelf => 3,
-            Self::CustomIIR => 6,
-        }
-    }
-}
-
-// #[derive(Serialize, Deserialize, Default)]
-// struct Filter {
-//     filter_type: String,
-//     q: f32,
-//     f0: f32,
-//     db_gain: f32,
-//     a0: f64,
-//     a1: f64,
-//     a2: f64,
-//     b0: f64,
-//     b1: f64,
-//     b2: f64,
-//     enabled: bool,
-// }
-
-#[derive(Serialize, Deserialize)]
-#[serde(tag = "type")]
-enum Filter {
-    Normal {
-        filter_type: FilterType,
-        enabled: bool,
-        q: f32,
-        f0: f32,
-        db_gain: f32,
-    },
-    Custom {
-        enabled: bool,
-        a0: f64,
-        a1: f64,
-        a2: f64,
-        b0: f64,
-        b1: f64,
-        b2: f64,
-    },
-}
-
-impl Filter {
-    fn enabled(&self) -> bool {
-        match self {
-            Self::Normal {
-                filter_type: _,
-                enabled,
-                q: _,
-                f0: _,
-                db_gain: _,
-            } => *enabled,
-            Self::Custom {
-                enabled,
-                a0: _,
-                a1: _,
-                a2: _,
-                b0: _,
-                b1: _,
-                b2: _,
-            } => *enabled,
-        }
-    }
-
-    fn filter_type(&self) -> FilterType {
-        match self {
-            Self::Normal {
-                filter_type,
-                enabled: _,
-                q: _,
-                f0: _,
-                db_gain: _,
-            } => *filter_type,
-            Self::Custom {
-                enabled: _,
-                a0: _,
-                a1: _,
-                a2: _,
-                b0: _,
-                b1: _,
-                b2: _,
-            } => FilterType::CustomIIR,
-        }
-    }
-
-    fn payload(&self) -> Vec<u8> {
-        let mut filter_payload = Vec::new();
-        filter_payload.push(self.filter_type() as u8);
-        filter_payload.extend_from_slice(&[0u8; 3]);
-        match self {
-            Filter::Normal { filter_type, enabled: _, q, f0, db_gain } => {
-                filter_payload.extend_from_slice(&f0.to_le_bytes());
-                if filter_type.num_args() == 3 {
-                    filter_payload.extend_from_slice(&db_gain.to_le_bytes());
-                }
-                filter_payload.extend_from_slice(&q.to_le_bytes());
-            },
-            Filter::Custom { enabled: _, a0, a1, a2, b0, b1, b2 } => {
-                filter_payload.extend_from_slice(&a0.to_le_bytes());
-                filter_payload.extend_from_slice(&a1.to_le_bytes());
-                filter_payload.extend_from_slice(&a2.to_le_bytes());
-                filter_payload.extend_from_slice(&b0.to_le_bytes());
-                filter_payload.extend_from_slice(&b1.to_le_bytes());
-                filter_payload.extend_from_slice(&b2.to_le_bytes());
-            },
-        }
-        filter_payload
-    }
 }
 
 #[derive(Serialize, Deserialize, Default)]
@@ -531,66 +380,12 @@ fn load_config(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<St
                 let reverse_stereo = cur.read_u8().unwrap() != 0;
 
                 cfg.preprocessing = Preprocessing::new(preamp, postEQGain, reverse_stereo);
-                cur.seek(SeekFrom::Current(3)); // reserved bytes
+                let _ = cur.seek(SeekFrom::Current(3)); // reserved bytes
             }
             x if x == StructureTypes::FilterConfiguration as u16 => {
                 let end = cur.position() + (length_val - 4) as u64;
                 while cur.position() < end {
-                    let filter_type = cur.read_u8().unwrap();
-                    cur.seek(SeekFrom::Current(3)); // reserved bytes
-
-                    let filter_type = match filter_type {
-                        x if x == FilterType::Lowpass as u8 => FilterType::Lowpass,
-                        x if x == FilterType::Highpass as u8 => FilterType::Highpass,
-                        x if x == FilterType::BandpassSkirt as u8 => FilterType::BandpassSkirt,
-                        x if x == FilterType::BandpassPeak as u8 => FilterType::BandpassPeak,
-                        x if x == FilterType::Notch as u8 => FilterType::Notch,
-                        x if x == FilterType::Allpass as u8 => FilterType::Allpass,
-                        x if x == FilterType::Peaking as u8 => FilterType::Peaking,
-                        x if x == FilterType::LowShelf as u8 => FilterType::LowShelf,
-                        x if x == FilterType::HighShelf as u8 => FilterType::HighShelf,
-                        x if x == FilterType::CustomIIR as u8 => FilterType::CustomIIR,
-                        _ => {
-                            return {
-                                error!("Unknown filter type {}", filter_type);
-                                Err(())
-                            }
-                        }
-                    };
-
-                    let filter = if let FilterType::CustomIIR = filter_type {
-                        let a0 = cur.read_f64::<LittleEndian>().unwrap();
-                        let a1 = cur.read_f64::<LittleEndian>().unwrap();
-                        let a2 = cur.read_f64::<LittleEndian>().unwrap();
-                        let b0 = cur.read_f64::<LittleEndian>().unwrap();
-                        let b1 = cur.read_f64::<LittleEndian>().unwrap();
-                        let b2 = cur.read_f64::<LittleEndian>().unwrap();
-                        Filter::Custom {
-                            enabled: true,
-                            a0,
-                            a1,
-                            a2,
-                            b0,
-                            b1,
-                            b2,
-                        }
-                    } else {
-                        let f0 = cur.read_f32::<LittleEndian>().unwrap();
-                        let db_gain = if filter_type.num_args() == 3 {
-                            cur.read_f32::<LittleEndian>().unwrap()
-                        } else {
-                            0.0
-                        };
-                        let q = cur.read_f32::<LittleEndian>().unwrap();
-                        Filter::Normal {
-                            filter_type,
-                            enabled: true,
-                            q,
-                            f0,
-                            db_gain,
-                        }
-                    };
-                    cfg.filters.push(filter)
+                    cfg.filters.push(Filter::from_bytes(&mut cur)?)
                 }
 
                 if cur.position() != end {
@@ -828,7 +623,7 @@ fn main() {
             let logfile = app_log_dir_path.join("headphones_toolbox.log");
             let lastlog = app_log_dir_path.join("headphones_toolbox.log.1");
             std::fs::create_dir_all(app_log_dir_path).unwrap();
-            fs::rename(logfile.as_path(), lastlog.as_path());
+            let _ = fs::rename(logfile.as_path(), lastlog.as_path());
 
             CombinedLogger::init(vec![
                 TermLogger::new(
