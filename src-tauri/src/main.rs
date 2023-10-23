@@ -330,10 +330,6 @@ fn save_config(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<()
 
 #[tauri::command]
 fn load_config(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<Config, String> {
-    let mut buf: Vec<u8> = Vec::new();
-    buf.extend_from_slice(&(StructureTypes::GetStoredConfiguration as u16).to_le_bytes());
-    buf.extend_from_slice(&(4u16).to_le_bytes());
-
     let binding = send_cmd(connection_state, GetStoredConfiguration::new());
     let cfg = match &binding {
         Ok(x) => x,
