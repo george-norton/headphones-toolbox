@@ -564,8 +564,8 @@ fn main() {
             ])
             .unwrap();
 
-            #[allow(unused_variables)]
             let window = app.get_window("main").unwrap();
+            let _ = window.set_resizable(true);
             #[cfg(any(windows, target_os = "macos"))]
             set_shadow(&window, true).expect("Unsupported platform!");
             info!("Headphones Toolbox Started");
