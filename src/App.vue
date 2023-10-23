@@ -408,8 +408,8 @@ export default {
               this.$q.notify({ type: 'negative', message: "Device disconnected" })
               this.connected = false
             }
-            else if (status.error) {
-              this.$q.notify({ type: 'negative', message: "Device is in an error state, reconnecting.." })
+            else if (!status.connected) {
+              this.$q.notify({ type: 'negative', message: "Device disconnected, reconnecting..." })
               this.connected = false
               this.openDevice()
             }

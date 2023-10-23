@@ -13,17 +13,16 @@ use commands::SetPreprocessingConfiguration;
 use commands::StructureTypes;
 use model::Filter;
 use model::Filters;
+use parking_lot::Mutex;
 use rusb::{Device, DeviceHandle, Direction, UsbContext};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::collections::HashSet;
 use std::default::Default;
 use std::io::BufRead;
 use std::io::Cursor;
 use std::io::Seek;
 use std::io::SeekFrom;
 use std::str;
-use parking_lot::Mutex;
 use std::time::Duration;
 use tauri::State;
 // Window shadow support
@@ -51,13 +50,34 @@ const MAX_CFG_LEN: usize = 512;
 pub struct ConnectionState {
     serial_numbers: HashMap<u16, String>, // Maps addresses to serial numbers
     connected: Option<ConnectedDevice>,
-    error: bool,
+}
+
+impl ConnectionState {
+    fn check_connection(&mut self) -> bool {
+        let handle = match &self.connected {
+            Some(x) => x,
+            None => return false,
+        };
+
+        if !handle.is_connected() {
+            self.connected = None;
+            return false;
+        }
+
+        true
+    }
 }
 
 #[derive(Debug)]
 pub struct ConnectedDevice {
     device_handle: DeviceHandle<rusb::Context>,
     configuration_interface: ConfigurationInterface,
+}
+
+impl ConnectedDevice {
+    fn is_connected(&self) -> bool {
+        self.device_handle.active_configuration().is_ok()
+    }
 }
 
 #[derive(Debug)]
@@ -67,9 +87,9 @@ struct ConfigurationInterface {
     output: u8,
 }
 
-#[derive(Serialize, Default)]
+#[derive(Serialize)]
 struct PollDeviceStatus {
-    error: bool,
+    connected: bool,
     device_list: Vec<String>,
 }
 
@@ -232,7 +252,7 @@ fn send_cmd(
 ) -> Result<[u8; MAX_CFG_LEN], String> {
     let mut buf = Vec::new();
     cmd.write_as_binary(&mut buf);
-    let mut connection = connection_state.lock();
+    let connection = connection_state.lock();
 
     let device = match &connection.connected {
         Some(x) => x,
@@ -251,9 +271,10 @@ fn send_cmd(
     {
         Ok(_) => (),
         Err(err) => {
-            error!("Failed to write to the configuration interface: {}", err);
-            connection.error = true;
-            return Err("Failed to write to the configuration interface".to_owned());
+            return Err(format!(
+                "Failed to write to the configuration interface: {}",
+                err
+            ));
         }
     }
 
@@ -278,7 +299,6 @@ fn send_cmd(
                 read_length += len as u16;
             }
             Err(err) => {
-                connection.error = true;
                 return Err(format!(
                     "Error reading from the configuration inteface: {}",
                     err
@@ -451,83 +471,77 @@ fn open(
 
 #[tauri::command]
 fn poll_devices(connection_state: State<Mutex<ConnectionState>>) -> PollDeviceStatus {
-    let mut status = PollDeviceStatus::default();
-    let mut known_devices: HashSet<u16> = connection_state
-        .lock()
-        .serial_numbers
-        .keys()
-        .cloned()
-        .collect();
-
-    // Flag any error condition to the frontend. This will cause it to try and reconnect.
-    status.error = connection_state.lock().error;
-    connection_state.lock().error = false;
+    let mut connection = connection_state.lock();
+    let mut known_devices = std::mem::take(&mut connection.serial_numbers);
 
     let context = rusb::Context::new().expect("Can't create libusb::Context::new()");
 
     let devices = match context.devices() {
         Ok(d) => d,
         Err(_) => {
-            status.error = true;
-            return status;
+            return PollDeviceStatus {
+                connected: false,
+                device_list: Vec::new(),
+            };
         }
     };
 
+    let serial_numbers = &mut connection.serial_numbers;
+
     for device in devices.iter() {
-        let address: u16 = ((device.bus_number() as u16) << 8) | (device.address() as u16);
-        if known_devices.contains(&address) {
-            status
-                .device_list
-                .push(connection_state.lock().serial_numbers[&address].clone());
-            known_devices.remove(&address);
-            continue;
-        }
         let device_desc = match device.device_descriptor() {
             Ok(d) => d,
             Err(_) => continue,
         };
+
+        if device_desc.vendor_id() != 0x2e8a || device_desc.product_id() != 0xfedd {
+            continue;
+        }
+
+        let address: u16 = ((device.bus_number() as u16) << 8) | (device.address() as u16);
+
+        match known_devices.remove(&address) {
+            Some(sn) => {
+                serial_numbers.insert(address, sn);
+                continue;
+            }
+            None => {}
+        }
+
+        info!("New device found at address {}", address);
         // println!("Device {:#x}:{:#x} {:#x} {:#x} {:#x}", device_desc.vendor_id(), device_desc.product_id(), device_desc.class_code(), device.bus_number(), device.address());
 
-        if device_desc.vendor_id() == 0x2e8a && device_desc.product_id() == 0xfedd {
-            info!("New device found at address {}", address);
-            let handle = match device.open() {
-                Ok(x) => x,
-                Err(e) => {
-                    error!("Open failed {}", e);
-                    continue;
-                }
-            };
+        let handle = match device.open() {
+            Ok(x) => x,
+            Err(e) => {
+                error!("Open failed {}", e);
+                continue;
+            }
+        };
 
-            let serial_number_string_index = device_desc.serial_number_string_index().unwrap();
-            let serial_number = handle.read_string_descriptor_ascii(serial_number_string_index);
+        let serial_number_string_index = device_desc.serial_number_string_index().unwrap();
 
-            let sn = match serial_number {
-                Ok(x) => x,
-                Err(e) => {
-                    error!("Get serial number failed {}", e);
-                    continue;
-                }
-            };
+        let sn = match handle.read_string_descriptor_ascii(serial_number_string_index) {
+            Ok(x) => x,
+            Err(e) => {
+                error!("Get serial number failed {}", e);
+                continue;
+            }
+        };
 
-            info!("Device {} has serial number {}", address, sn);
-            connection_state
-                .lock()
-                .serial_numbers
-                .insert(address, sn.clone());
-            status.device_list.push(sn);
-        }
+        info!("Device {} has serial number {}", address, sn);
+        serial_numbers.insert(address, sn);
     }
 
     // Handle unplugged devices
-    for address in known_devices {
-        info!("The device at address {} was disconnected", address);
-        connection_state
-            .lock()
-            .serial_numbers
-            .remove(&address);
+    for (address, sn) in known_devices {
+        info!("The device {} at address {} was disconnected", sn, address);
     }
 
-    status
+    PollDeviceStatus {
+        connected: connection.check_connection(),
+        device_list: connection.serial_numbers.values().cloned().collect(),
+    }
 }
 
 fn main() {
