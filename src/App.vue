@@ -72,7 +72,9 @@ export default {
           else {
             this.validated = true
           }
-        })
+        }).catch((e) => {
+        this.$q.notify({ type: 'negative', message: e })
+      })
       }
     },
     tab() {
@@ -168,6 +170,8 @@ export default {
         config.name = this.tabs[this.tab].name
         config.state = structuredClone(toRaw(this.tabs[this.tab].state))
         this.tabs[this.tab] = config
+      }).catch((e) => {
+        this.$q.notify({ type: 'negative', message: e })
       })
     },
     readDefaultConfiguration(filename) {
@@ -254,7 +258,9 @@ export default {
           }
         }
 
-        invoke('write_config', { config: sendConfig }).then(() => {})
+        invoke('write_config', { config: sendConfig }).then(() => {}).catch((e) => {
+        this.$q.notify({ type: 'negative', message: e })
+      })
       }
     }, 5),
     saveState: debounce(function () {
@@ -377,6 +383,8 @@ export default {
       invoke('open', { serialNumber: this.device }).then(() => {
         this.$q.notify({ type: 'positive', message: "Device connected" })
         this.connected = true
+      }).catch((e) => {
+        this.$q.notify({ type: 'negative', message: e })
       })
     },
     pollDevices() {
@@ -420,6 +428,8 @@ export default {
             }
           }
         }
+      }).catch((e) => {
+        this.$q.notify({ type: 'negative', message: e })
       })
     }
   }
