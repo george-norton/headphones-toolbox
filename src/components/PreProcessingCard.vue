@@ -10,11 +10,11 @@ export default {
     },
     props: {
         preamp: ref(0),
-        postEQGain: ref(0),
+        post_eq_gain: ref(0),
         reverse_stereo: ref(false),
         expansion: ref(Boolean)
     },
-    emits: ['update:preamp', 'update:postEQGain', 'update:reverse_stereo', 'update:expansion']
+    emits: ['update:preamp', 'update:post_eq_gain', 'update:reverse_stereo', 'update:expansion']
 }
 </script>
 <template>
@@ -46,9 +46,9 @@ export default {
                         <div class="row justify-start items-center q-gutter-sm">
                             <q-chip icon="volume_up" class="control-label" color=secondary text-color=white>Post-EQ Gain</q-chip>
                         </div>
-                        <q-slider :model-value="postEQGain" @update:model-value="(value) => $emit('update:postEQGain', value)"
+                        <q-slider :model-value="post_eq_gain" @update:model-value="(value) => $emit('update:post_eq_gain', value)"
                             :min="0" :max="9" :step="0.1" :markers="3" :marker-labels="postEQGainMarkerLabel"
-                            :label-value="postEQGain + 'dB'" label />
+                            :label-value="post_eq_gain + 'dB'" label />
                     </q-item-section>
                 </q-item>
                 <q-checkbox label="Reverse Stereo" :model-value="reverse_stereo"

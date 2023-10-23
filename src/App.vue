@@ -144,8 +144,13 @@ export default {
         config.preprocessing.reverse_stereo = config.preprocessing.reverseStereo
         delete config.preprocessing.reverseStereo
       }
-      if (!("postEQGain" in config.preprocessing)) {
-        config.preprocessing.postEQGain = 0;
+      if ("postEQGain" in config.preprocessing) {
+        config.preprocessing.post_eq_gain = config.preprocessing.postEQGain;
+        delete config.preprocessing.postEQGain;
+
+      }
+      if (!("post_eq_gain" in config.preprocessing)) {
+        config.preprocessing.post_eq_gain = 0;
       }
       if (semver.lt(config.version, "0.0.4")) {
         // Migrate preamp to db value
@@ -232,7 +237,7 @@ export default {
         var sendConfig = {
           "preprocessing": { 
               "preamp": this.tabs[this.tab].preprocessing.preamp, 
-              "postEQGain": this.tabs[this.tab].preprocessing.postEQGain,
+              "post_eq_gain": this.tabs[this.tab].preprocessing.post_eq_gain,
               "reverse_stereo": this.tabs[this.tab].preprocessing.reverse_stereo 
             },
           "filters": this.tabs[this.tab].filters,
@@ -546,7 +551,7 @@ export default {
             <div class="column q-gutter-md q-ma-none">
               <PreProcessingCardVue 
                 v-model:preamp="t.preprocessing.preamp"
-                v-model:postEQGain="t.preprocessing.postEQGain"
+                v-model:post_eq_gain="t.preprocessing.post_eq_gain"
                 v-model:reverse_stereo="t.preprocessing.reverse_stereo" 
                 v-model:expansion="t.state.expanded[0]" 
               />

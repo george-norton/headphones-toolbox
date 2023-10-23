@@ -28,6 +28,8 @@ use std::time::Duration;
 use tauri::State;
 // Window shadow support
 use tauri::Manager;
+
+#[allow(unused_imports)]
 use window_shadows::set_shadow;
 
 // Logging
@@ -123,15 +125,15 @@ fn find_configuration_endpoints<T: UsbContext>(
 #[derive(Serialize, Deserialize, Default, Debug)]
 pub struct Preprocessing {
     preamp: f32,
-    postEQGain: f32,
+    post_eq_gain: f32,
     reverse_stereo: bool,
 }
 
 impl Preprocessing {
-    fn new(preamp: f32, postEQGain: f32, reverse_stereo: bool) -> Self {
+    fn new(preamp: f32, post_eq_gain: f32, reverse_stereo: bool) -> Self {
         Preprocessing {
             preamp: preamp.log10() * 20.0,
-            postEQGain: postEQGain.log10() * 20.0,
+            post_eq_gain: post_eq_gain.log10() * 20.0,
             reverse_stereo,
         }
     }
@@ -146,7 +148,7 @@ impl Preprocessing {
 
         /* Send the post-EQ gain value from the UI. */
         preprocessing_payload
-            .extend_from_slice(&(f32::powf(10.0, self.postEQGain / 20.0) - 1.0).to_le_bytes());
+            .extend_from_slice(&(f32::powf(10.0, self.post_eq_gain / 20.0) - 1.0).to_le_bytes());
 
         preprocessing_payload.push(self.reverse_stereo as u8);
         preprocessing_payload.extend_from_slice(&[0u8; 3]);
@@ -342,10 +344,10 @@ fn load_config(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<Co
             x if x == StructureTypes::PreProcessingConfiguration as u16 => {
                 // +1 to maintain compatability with old firmwares
                 let preamp = cur.read_f32::<LittleEndian>().unwrap() + 1.0;
-                let postEQGain = cur.read_f32::<LittleEndian>().unwrap() + 1.0;
+                let post_eq_gain = cur.read_f32::<LittleEndian>().unwrap() + 1.0;
                 let reverse_stereo = cur.read_u8().unwrap() != 0;
 
-                cfg.preprocessing = Preprocessing::new(preamp, postEQGain, reverse_stereo);
+                cfg.preprocessing = Preprocessing::new(preamp, post_eq_gain, reverse_stereo);
                 let _ = cur.seek(SeekFrom::Current(3)); // reserved bytes
             }
             x if x == StructureTypes::FilterConfiguration as u16 => {
@@ -563,6 +565,8 @@ fn main() {
                 ),
             ])
             .unwrap();
+
+            #[allow(unused_variables)]
             let window = app.get_window("main").unwrap();
             #[cfg(any(windows, target_os = "macos"))]
             set_shadow(&window, true).expect("Unsupported platform!");

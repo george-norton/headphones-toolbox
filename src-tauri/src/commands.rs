@@ -10,8 +10,8 @@ pub trait Command {
 #[allow(dead_code)]
 pub enum StructureTypes {
     // Commands/Responses, these are container TLVs. The Value will be a set of TLV structures.
-    OK = 0,      // Standard response when a command was successful
-    NOK,         // Standard error response
+    Ok = 0,      // Standard response when a command was successful
+    Nok,         // Standard error response
     FlashHeader, // A special container for the config stored in flash. Hopefully there is some useful
     // metadata in here to allow us to migrate an old config to a new version.
     GetVersion, // Returns the current config version, and the minimum supported version so clients
