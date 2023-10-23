@@ -23,7 +23,7 @@ use std::io::Cursor;
 use std::io::Seek;
 use std::io::SeekFrom;
 use std::str;
-use std::sync::Mutex;
+use parking_lot::Mutex;
 use std::time::Duration;
 use tauri::State;
 // Window shadow support
@@ -232,7 +232,7 @@ fn send_cmd(
 ) -> Result<[u8; MAX_CFG_LEN], String> {
     let mut buf = Vec::new();
     cmd.write_as_binary(&mut buf);
-    let mut connection = connection_state.lock().unwrap();
+    let mut connection = connection_state.lock();
 
     let device = match &connection.connected {
         Some(x) => x,
@@ -377,7 +377,7 @@ fn factory_reset(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<
 
 #[tauri::command]
 fn reboot_bootloader(connection_state: State<Mutex<ConnectionState>>) -> Result<(), String> {
-    let connection = connection_state.lock().unwrap();
+    let connection = connection_state.lock();
     let device = match &connection.connected {
         Some(x) => x,
         None => return Err("No connection".to_owned()),
@@ -416,7 +416,7 @@ fn open(
         .devices()
         .map_err(|e| format!("Device not found: {}", e))?;
 
-    let mut connection = connection_state.lock().unwrap();
+    let mut connection = connection_state.lock();
     connection.connected = None;
     for device in devices.iter() {
         let address: u16 = ((device.bus_number() as u16) << 8) | (device.address() as u16);
@@ -454,15 +454,14 @@ fn poll_devices(connection_state: State<Mutex<ConnectionState>>) -> PollDeviceSt
     let mut status = PollDeviceStatus::default();
     let mut known_devices: HashSet<u16> = connection_state
         .lock()
-        .unwrap()
         .serial_numbers
         .keys()
         .cloned()
         .collect();
 
     // Flag any error condition to the frontend. This will cause it to try and reconnect.
-    status.error = connection_state.lock().unwrap().error;
-    connection_state.lock().unwrap().error = false;
+    status.error = connection_state.lock().error;
+    connection_state.lock().error = false;
 
     let context = rusb::Context::new().expect("Can't create libusb::Context::new()");
 
@@ -479,7 +478,7 @@ fn poll_devices(connection_state: State<Mutex<ConnectionState>>) -> PollDeviceSt
         if known_devices.contains(&address) {
             status
                 .device_list
-                .push(connection_state.lock().unwrap().serial_numbers[&address].clone());
+                .push(connection_state.lock().serial_numbers[&address].clone());
             known_devices.remove(&address);
             continue;
         }
@@ -513,7 +512,6 @@ fn poll_devices(connection_state: State<Mutex<ConnectionState>>) -> PollDeviceSt
             info!("Device {} has serial number {}", address, sn);
             connection_state
                 .lock()
-                .unwrap()
                 .serial_numbers
                 .insert(address, sn.clone());
             status.device_list.push(sn);
@@ -525,7 +523,6 @@ fn poll_devices(connection_state: State<Mutex<ConnectionState>>) -> PollDeviceSt
         info!("The device at address {} was disconnected", address);
         connection_state
             .lock()
-            .unwrap()
             .serial_numbers
             .remove(&address);
     }
