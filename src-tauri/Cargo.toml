@@ -21,7 +21,7 @@ byteorder = "1.4.3"
 window-shadows = "0.2.1"
 simplelog = "0.12.1"
 log = "0.4.20"
-parking_lot = { version = "0.12.1", features = ["serde"] }
+parking_lot = "0.12.1"
 
 [features]
 # this feature is used for production builds or when `devPath` points to the filesystem
