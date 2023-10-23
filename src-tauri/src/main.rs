@@ -67,19 +67,10 @@ struct ConfigurationInterface {
     output: u8,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Default)]
 struct PollDeviceStatus {
     error: bool,
     device_list: Vec<String>,
-}
-
-impl PollDeviceStatus {
-    fn new() -> PollDeviceStatus {
-        PollDeviceStatus {
-            error: false,
-            device_list: Vec::with_capacity(10),
-        }
-    }
 }
 
 fn find_configuration_endpoints<T: UsbContext>(
@@ -460,7 +451,7 @@ fn open(
 
 #[tauri::command]
 fn poll_devices(connection_state: State<Mutex<ConnectionState>>) -> PollDeviceStatus {
-    let mut status = PollDeviceStatus::new();
+    let mut status = PollDeviceStatus::default();
     let mut known_devices: HashSet<u16> = connection_state
         .lock()
         .unwrap()
