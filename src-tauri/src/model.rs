@@ -137,7 +137,7 @@ impl Filter {
         }
     }
 
-    pub fn payload(&self) -> Vec<u8> {
+    pub fn payload(&self) -> Result<Vec<u8>, String> {
         let mut filter_payload = Vec::new();
         filter_payload.push(self.discriminant());
         filter_payload.extend_from_slice(&[0u8; 3]);
@@ -149,10 +149,16 @@ impl Filter {
             | Self::BandpassSkirt(x)
             | Self::Notch(x)
             | Self::Allpass(x) => {
+                if x.q <= 0.0 {
+                    return Err("Quality shall not be lower than 0.".to_owned());
+                }
                 filter_payload.extend_from_slice(&x.f0.to_le_bytes());
                 filter_payload.extend_from_slice(&x.q.to_le_bytes());
             }
             Self::Peaking(x) | Self::LowShelf(x) | Self::HighShelf(x) => {
+                if x.q <= 0.0 {
+                    return Err("Quality shall not be lower than 0.".to_owned());
+                }
                 filter_payload.extend_from_slice(&x.f0.to_le_bytes());
                 filter_payload.extend_from_slice(&x.db_gain.to_le_bytes());
                 filter_payload.extend_from_slice(&x.q.to_le_bytes());
@@ -166,7 +172,7 @@ impl Filter {
                 filter_payload.extend_from_slice(&x.b2.to_le_bytes());
             }
         }
-        filter_payload
+        Ok(filter_payload)
     }
 
     pub fn from_bytes(mut cur: impl Read + Seek) -> Result<Self, String> {
@@ -208,12 +214,13 @@ impl Filter {
 pub struct Filters(Vec<Filter>);
 
 impl Filters {
-    pub fn to_payload(&self) -> Vec<u8> {
+    pub fn to_payload(&self) -> Result<Vec<u8>, String> {
         self.0
             .iter()
             .filter(|f| f.enabled())
-            .flat_map(|f| f.payload())
-            .collect()
+            .map(|f| f.payload())
+            .collect::<Result<Vec<_>, String>>()
+            .map(|v| v.into_iter().flatten().collect())
     }
 
     pub fn add(&mut self, filter: Filter) {

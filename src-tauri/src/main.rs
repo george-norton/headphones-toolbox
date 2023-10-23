@@ -251,7 +251,7 @@ fn send_cmd(
     cmd: impl Command,
 ) -> Result<[u8; MAX_CFG_LEN], String> {
     let mut buf = Vec::new();
-    cmd.write_as_binary(&mut buf);
+    cmd.write_as_binary(&mut buf)?;
     let connection = connection_state.lock();
 
     let device = match &connection.connected {
