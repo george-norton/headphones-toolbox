@@ -1,3 +1,7 @@
+<script setup>
+  import { FilterTypes } from './FilterTypes.js'
+</script>
+
 <template>
   <div class="full-width">
     <q-toolbar class="title-bar-lv2">
@@ -22,7 +26,7 @@
       </q-btn>
     </q-toolbar>
     <div class="full-width row">
-      <q-list dense bordered class="col-grow q-py-sm" v-if="filter_type !== 'custom_iir'">
+      <q-list dense bordered class="col-grow q-py-sm" v-if="filter_type !== FilterTypes.CUSTOMIIR">
         <q-item>
           <q-item-section>
             <div class="row justify-start items-center q-gutter-sm">
@@ -42,7 +46,7 @@
           </q-item-section>
         </q-item>
 
-        <q-item v-if="['lowshelf', 'highshelf', 'peaking'].includes(filter_type)">
+        <q-item v-if="[FilterTypes.LOWSHELF, FilterTypes.HIGHSHELF, FilterTypes.PEAKING].includes(filter_type)">
 
           <q-item-section>
             <div class="row justify-start items-center q-gutter-sm">
@@ -137,7 +141,7 @@ import { getFilterCoefficients } from '@/components/FilterCoefficients.js'
 export default {
   watch: {
     filter_type(new_type, old_type) {
-      if (new_type == 'custom_iir') {
+      if (new_type == FilterTypes.CUSTOMIIR) {
         var c = getFilterCoefficients(old_type, this.f0, this.db_gain, this.q)
         if (c) {
           this.$emit('update:a0', Math.round(c.feedback[0] * this.iirDp) / this.iirDp)
@@ -153,16 +157,16 @@ export default {
   data() {
     return {
       iirDp: 1000000000,
-      filter_types: [{ value: 'lowpass', label: 'Low Pass' },
-      { value: 'highpass', label: 'High Pass' },
-      { value: 'bandpass_skirt', label: 'Bandpass Skirt' },
-      { value: 'bandpass', label: 'Bandpass Peak' },
-      { value: 'notch', label: "Notch" },
-      { value: 'allpass', label: "All Pass" },
-      { value: 'peaking', label: "Peaking" },
-      { value: 'lowshelf', label: "Low Shelf" },
-      { value: 'highshelf', label: "High Shelf" },
-      { value: 'custom_iir', label: "Custom IIR Filter" }],
+      filter_types: [{ value: FilterTypes.LOWPASS, label: 'Low Pass' },
+      { value: FilterTypes.HIGHPASS, label: 'High Pass' },
+      { value: FilterTypes.BANDPASSSKIRT, label: 'Bandpass Skirt' },
+      { value: FilterTypes.BANDPASSPEAK, label: 'Bandpass Peak' },
+      { value: FilterTypes.NOTCH, label: "Notch" },
+      { value: FilterTypes.ALLPASS, label: "All Pass" },
+      { value: FilterTypes.PEAKING, label: "Peaking" },
+      { value: FilterTypes.LOWSHELF, label: "Low Shelf" },
+      { value: FilterTypes.HIGHSHELF, label: "High Shelf" },
+      { value: FilterTypes.CUSTOMIIR, label: "Custom IIR Filter" }],
       warning: ref(true)
     }
   },

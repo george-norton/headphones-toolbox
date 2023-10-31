@@ -7,6 +7,7 @@ import AboutDialogVue from './components/AboutDialog.vue'
 import InfoMenuVue from './components/InfoMenu.vue'
 import { appWindow } from '@tauri-apps/api/window'
 import { useQuasar } from 'quasar'
+import { FilterTypes } from './components/FilterTypes.js'
 
 const $q = useQuasar()
 $q.dark.set("auto")
@@ -123,6 +124,21 @@ export default {
       for (var i in config.filters) {
         // Internally we need all these unused parameters, so populate dummy values where they are missing from the import
         config.filters[i] = { ...{ q: 0, f0: 0, db_gain: 0, a0: 0, a1: 0, a2: 0, b0: 0, b1: 0, b2: 0 }, ...config.filters[i], }
+        const old_types = {
+          'lowpass': FilterTypes.LOWPASS,
+          'highpass': FilterTypes.HIGHPASS,
+          'bandpass_skirt': FilterTypes.BANDPASSSKIRT,
+          'bandpass': FilterTypes.BANDPASSPEAK,
+          'notch': FilterTypes.NOTCH,
+          'allpass': FilterTypes.ALLPASS,
+          'peaking': FilterTypes.PEAKING,
+          'lowshelf': FilterTypes.LOWSHELF,
+          'highshelf': FilterTypes.HIGHSHELF,
+          'custom_iir': FilterTypes.CUSTOMIIR
+        }
+        if (config.filters[i].filter_type in old_types) {
+          config.filters[i].filter_type = old_types[config.filters[i].filter_type]
+        }
       }
       if ("reverseStereo" in config.preprocessing) {
         config.preprocessing.reverse_stereo = config.preprocessing.reverseStereo
@@ -228,12 +244,13 @@ export default {
           console.log(sendConfig)
           for (var f in sendConfig.filters) {
             console.log(f)
-            if (sendConfig.filters[f].filter_type == "custom_iir" && sendConfig.filters[f].enabled) {
+            if (sendConfig.filters[f].filter_type == FilterTypes.CUSTOMIIR && sendConfig.filters[f].enabled) {
               this.$q.notify({ type: 'negative', message: "IIR filters are not supported by this firmware version." })
               break
             }
           }
         }
+
         invoke('write_config', { config: JSON.stringify(sendConfig) }).then((message) => {
         })
       }
@@ -289,7 +306,7 @@ export default {
       delete exportData.id
       for (var f in exportData.filters) {
         var filter = exportData.filters[f]
-        if (filter.filter_type !== "custom_iir") {
+        if (filter.filter_type !== FilterTypes.CUSTOMIIR) {
           delete filter.a0
           delete filter.a1
           delete filter.a2
