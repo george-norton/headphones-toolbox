@@ -62,7 +62,7 @@ export default {
       if (this.connected) {
         this.sendState()
         invoke("read_version_info").then((version) => {
-          this.versions = { ...JSON.parse(version), ...{ "serial_number": this.device, "client_api_version": API_VERSION } }
+          this.versions = { ...version, ...{ "serial_number": this.device, "client_api_version": API_VERSION } }
           if (this.versions.minimum_supported_version> API_VERSION) {
             this.$q.notify({ type: 'negative', message: "Firmware is too new, this version of Ploopy Headphones Toolkit is not supported." })
           }
@@ -72,7 +72,9 @@ export default {
           else {
             this.validated = true
           }
-        })
+        }).catch((e) => {
+        this.$q.notify({ type: 'negative', message: e })
+      })
       }
     },
     tab() {
@@ -144,8 +146,13 @@ export default {
         config.preprocessing.reverse_stereo = config.preprocessing.reverseStereo
         delete config.preprocessing.reverseStereo
       }
-      if (!("postEQGain" in config.preprocessing)) {
-        config.preprocessing.postEQGain = 0;
+      if ("postEQGain" in config.preprocessing) {
+        config.preprocessing.post_eq_gain = config.preprocessing.postEQGain;
+        delete config.preprocessing.postEQGain;
+
+      }
+      if (!("post_eq_gain" in config.preprocessing)) {
+        config.preprocessing.post_eq_gain = 0;
       }
       if (semver.lt(config.version, "0.0.4")) {
         // Migrate preamp to db value
@@ -158,12 +165,13 @@ export default {
       return { height: height }
     },
     readDeviceConfiguration() {
-      invoke("load_config").then((deviceConfig) => {
-        var config = JSON.parse(deviceConfig)
+      invoke("load_config").then((config) => {
         config.id = this.tab
         config.name = this.tabs[this.tab].name
         config.state = structuredClone(toRaw(this.tabs[this.tab].state))
         this.tabs[this.tab] = config
+      }).catch((e) => {
+        this.$q.notify({ type: 'negative', message: e })
       })
     },
     readDefaultConfiguration(filename) {
@@ -190,8 +198,7 @@ export default {
         this.tab = nextId
         return;
       }
-      invoke("load_config").then((deviceConfig) => {
-        var config = JSON.parse(deviceConfig)
+      invoke("load_config").then((config) => {
         this.migrateConfig(config)
         config.name = "Unnamed configuration"
         config.id = nextId
@@ -234,7 +241,7 @@ export default {
         var sendConfig = {
           "preprocessing": { 
               "preamp": this.tabs[this.tab].preprocessing.preamp, 
-              "postEQGain": this.tabs[this.tab].preprocessing.postEQGain,
+              "post_eq_gain": this.tabs[this.tab].preprocessing.post_eq_gain,
               "reverse_stereo": this.tabs[this.tab].preprocessing.reverse_stereo 
             },
           "filters": this.tabs[this.tab].filters,
@@ -251,8 +258,9 @@ export default {
           }
         }
 
-        invoke('write_config', { config: JSON.stringify(sendConfig) }).then((message) => {
-        })
+        invoke('write_config', { config: sendConfig }).then(() => {}).catch((e) => {
+        this.$q.notify({ type: 'negative', message: e })
+      })
       }
     }, 5),
     saveState: debounce(function () {
@@ -372,16 +380,15 @@ export default {
       this.saveState()
     },
     openDevice() {
-      invoke('open', { serialNumber: this.device }).then((result) => {
-        if (result) {
-          this.$q.notify({ type: 'positive', message: "Device connected" })
-          this.connected = true
-        }
+      invoke('open', { serialNumber: this.device }).then(() => {
+        this.$q.notify({ type: 'positive', message: "Device connected" })
+        this.connected = true
+      }).catch((e) => {
+        this.$q.notify({ type: 'negative', message: e })
       })
     },
     pollDevices() {
-      invoke('poll_devices').then((message) => {
-        var status = JSON.parse(message)
+      invoke('poll_devices').then((status) => {
         for (var d in status.device_list) {
           if (!(status.device_list[d] in deviceNames)) {
             if (status.device_list.length == 1 && !("Ploopy Headphones" in deviceNames)) {
@@ -409,8 +416,8 @@ export default {
               this.$q.notify({ type: 'negative', message: "Device disconnected" })
               this.connected = false
             }
-            else if (status.error) {
-              this.$q.notify({ type: 'negative', message: "Device is in an error state, reconnecting.." })
+            else if (!status.connected) {
+              this.$q.notify({ type: 'negative', message: "Device disconnected, reconnecting..." })
               this.connected = false
               this.openDevice()
             }
@@ -421,6 +428,8 @@ export default {
             }
           }
         }
+      }).catch((e) => {
+        this.$q.notify({ type: 'negative', message: e })
       })
     }
   }
@@ -552,7 +561,7 @@ export default {
             <div class="column q-gutter-md q-ma-none">
               <PreProcessingCardVue 
                 v-model:preamp="t.preprocessing.preamp"
-                v-model:postEQGain="t.preprocessing.postEQGain"
+                v-model:post_eq_gain="t.preprocessing.post_eq_gain"
                 v-model:reverse_stereo="t.preprocessing.reverse_stereo" 
                 v-model:expansion="t.state.expanded[0]" 
               />

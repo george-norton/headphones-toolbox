@@ -1120,6 +1120,7 @@ version = "0.0.5"
 dependencies = [
  "byteorder",
  "log",
+ "parking_lot",
  "rusb",
  "serde",
  "serde_json",

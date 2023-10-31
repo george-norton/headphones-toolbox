@@ -1,7 +1,7 @@
 {
     "preprocessing": {
         "preamp": -4.1,
-        "postEQGain": 3.0,
+        "post_eq_gain": 3.0,
         "reverse_stereo": true
     },
     "filters": [

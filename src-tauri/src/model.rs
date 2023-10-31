@@ -1,34 +1,7 @@
-use log::error;
 use std::io::{Read, Seek, SeekFrom};
 
 use byteorder::{LittleEndian, ReadBytesExt};
 use serde::{Deserialize, Serialize};
-
-#[repr(u16)]
-#[allow(dead_code)]
-pub enum StructureTypes {
-    // Commands/Responses, these are container TLVs. The Value will be a set of TLV structures.
-    OK = 0,      // Standard response when a command was successful
-    NOK,         // Standard error response
-    FlashHeader, // A special container for the config stored in flash. Hopefully there is some useful
-    // metadata in here to allow us to migrate an old config to a new version.
-    GetVersion, // Returns the current config version, and the minimum supported version so clients
-    // can decide if they can talk to us or not.
-    SetConfiguration, // Updates the active configuration with the supplied TLVs
-    GetActiveConfiguration, // Retrieves the current active configuration TLVs from RAM
-    GetStoredConfiguration, // Retrieves the current stored configuration TLVs from Flash
-    SaveConfiguration, // Writes the active configuration to Flash
-    FactoryReset,     // Invalidates the flash memory
-
-    // Configuration structures, these are returned in the body of a command/response
-    PreProcessingConfiguration = 0x200,
-    FilterConfiguration,
-    Pcm3060Configuration,
-
-    // Status structures, these are returned in the body of a command/response but they are
-    // not persisted as part of the configuration
-    VersionStatus = 0x400,
-}
 
 trait ReadFilter: Sized {
     fn from_reader(cur: impl Read) -> Self;
@@ -164,9 +137,9 @@ impl Filter {
         }
     }
 
-    pub fn payload(&self) -> Vec<u8> {
+    pub fn payload(&self) -> Result<Vec<u8>, String> {
         let mut filter_payload = Vec::new();
-        filter_payload.push(self.discriminant() as u8);
+        filter_payload.push(self.discriminant());
         filter_payload.extend_from_slice(&[0u8; 3]);
 
         match self {
@@ -176,10 +149,16 @@ impl Filter {
             | Self::BandpassSkirt(x)
             | Self::Notch(x)
             | Self::Allpass(x) => {
+                if x.q <= 0.0 {
+                    return Err("Quality shall not be lower than 0.".to_owned());
+                }
                 filter_payload.extend_from_slice(&x.f0.to_le_bytes());
                 filter_payload.extend_from_slice(&x.q.to_le_bytes());
             }
             Self::Peaking(x) | Self::LowShelf(x) | Self::HighShelf(x) => {
+                if x.q <= 0.0 {
+                    return Err("Quality shall not be lower than 0.".to_owned());
+                }
                 filter_payload.extend_from_slice(&x.f0.to_le_bytes());
                 filter_payload.extend_from_slice(&x.db_gain.to_le_bytes());
                 filter_payload.extend_from_slice(&x.q.to_le_bytes());
@@ -193,10 +172,10 @@ impl Filter {
                 filter_payload.extend_from_slice(&x.b2.to_le_bytes());
             }
         }
-        filter_payload
+        Ok(filter_payload)
     }
 
-    pub fn from_bytes(mut cur: impl Read + Seek) -> Result<Self, ()> {
+    pub fn from_bytes(mut cur: impl Read + Seek) -> Result<Self, String> {
         let filter_type = cur.read_u8().unwrap();
         let _ = cur.seek(SeekFrom::Current(3)); // reserved bytes
 
@@ -216,8 +195,7 @@ impl Filter {
             x if x == FilterType::HighShelf as u8 => Self::HighShelf(ReadFilter::from_reader(cur)),
             x if x == FilterType::CustomIIR as u8 => Self::CustomIIR(ReadFilter::from_reader(cur)),
             other => {
-                error!("Unknown filter type: {}", other);
-                return Err(());
+                return Err(format!("Unknown filter type: {}", other));
             }
         };
 
@@ -236,12 +214,13 @@ impl Filter {
 pub struct Filters(Vec<Filter>);
 
 impl Filters {
-    pub fn to_payload(&self) -> Vec<u8> {
+    pub fn to_payload(&self) -> Result<Vec<u8>, String> {
         self.0
             .iter()
             .filter(|f| f.enabled())
-            .flat_map(|f| f.payload())
-            .collect()
+            .map(|f| f.payload())
+            .collect::<Result<Vec<_>, String>>()
+            .map(|v| v.into_iter().flatten().collect())
     }
 
     pub fn add(&mut self, filter: Filter) {

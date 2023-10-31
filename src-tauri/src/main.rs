@@ -1,34 +1,44 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 use byteorder::{LittleEndian, ReadBytesExt};
+use commands::Command;
+use commands::FactoryReset;
+use commands::GetStoredConfiguration;
+use commands::GetVersion;
+use commands::SaveConfiguration;
+use commands::SetConfiguration;
+use commands::SetFilterConfiguration;
+use commands::SetPcm3060Configuration;
+use commands::SetPreprocessingConfiguration;
+use commands::StructureTypes;
 use model::Filter;
 use model::Filters;
-use model::StructureTypes;
+use parking_lot::Mutex;
 use rusb::{Device, DeviceHandle, Direction, UsbContext};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::collections::HashSet;
 use std::default::Default;
 use std::io::BufRead;
 use std::io::Cursor;
 use std::io::Seek;
 use std::io::SeekFrom;
 use std::str;
-use std::sync::Mutex;
 use std::time::Duration;
 use tauri::State;
 // Window shadow support
 use tauri::Manager;
+
+#[allow(unused_imports)]
 use window_shadows::set_shadow;
 
 // Logging
-use log::{debug, error, info, warn};
+use log::{error, info, warn};
 extern crate simplelog;
 use simplelog::*;
 use std::fs;
 use std::fs::File;
-use tauri::PathResolver;
 
+mod commands;
 mod model;
 
 pub const LIBUSB_RECIPIENT_DEVICE: u8 = 0x00;
@@ -40,13 +50,34 @@ const MAX_CFG_LEN: usize = 512;
 pub struct ConnectionState {
     serial_numbers: HashMap<u16, String>, // Maps addresses to serial numbers
     connected: Option<ConnectedDevice>,
-    error: bool,
+}
+
+impl ConnectionState {
+    fn check_connection(&mut self) -> bool {
+        let handle = match &self.connected {
+            Some(x) => x,
+            None => return false,
+        };
+
+        if !handle.is_connected() {
+            self.connected = None;
+            return false;
+        }
+
+        true
+    }
 }
 
 #[derive(Debug)]
 pub struct ConnectedDevice {
     device_handle: DeviceHandle<rusb::Context>,
     configuration_interface: ConfigurationInterface,
+}
+
+impl ConnectedDevice {
+    fn is_connected(&self) -> bool {
+        self.device_handle.active_configuration().is_ok()
+    }
 }
 
 #[derive(Debug)]
@@ -58,26 +89,14 @@ struct ConfigurationInterface {
 
 #[derive(Serialize)]
 struct PollDeviceStatus {
-    error: bool,
+    connected: bool,
     device_list: Vec<String>,
-}
-
-impl PollDeviceStatus {
-    fn new() -> PollDeviceStatus {
-        PollDeviceStatus {
-            error: false,
-            device_list: Vec::with_capacity(10),
-        }
-    }
 }
 
 fn find_configuration_endpoints<T: UsbContext>(
     device: &Device<T>,
 ) -> Option<ConfigurationInterface> {
-    let device_desc = match device.device_descriptor() {
-        Ok(d) => d,
-        Err(_) => return None,
-    };
+    let device_desc = device.device_descriptor().ok()?;
     for n in 0..device_desc.num_configurations() {
         let config_desc = match device.config_descriptor(n) {
             Ok(c) => c,
@@ -115,17 +134,17 @@ fn find_configuration_endpoints<T: UsbContext>(
 }
 
 #[derive(Serialize, Deserialize, Default, Debug)]
-struct Preprocessing {
+pub struct Preprocessing {
     preamp: f32,
-    postEQGain: f32,
+    post_eq_gain: f32,
     reverse_stereo: bool,
 }
 
 impl Preprocessing {
-    fn new(preamp: f32, postEQGain: f32, reverse_stereo: bool) -> Self {
+    fn new(preamp: f32, post_eq_gain: f32, reverse_stereo: bool) -> Self {
         Preprocessing {
             preamp: preamp.log10() * 20.0,
-            postEQGain: postEQGain.log10() * 20.0,
+            post_eq_gain: post_eq_gain.log10() * 20.0,
             reverse_stereo,
         }
     }
@@ -140,7 +159,7 @@ impl Preprocessing {
 
         /* Send the post-EQ gain value from the UI. */
         preprocessing_payload
-            .extend_from_slice(&(f32::powf(10.0, self.postEQGain / 20.0) - 1.0).to_le_bytes());
+            .extend_from_slice(&(f32::powf(10.0, self.post_eq_gain / 20.0) - 1.0).to_le_bytes());
 
         preprocessing_payload.push(self.reverse_stereo as u8);
         preprocessing_payload.extend_from_slice(&[0u8; 3]);
@@ -149,7 +168,7 @@ impl Preprocessing {
 }
 
 #[derive(Serialize, Deserialize, Default, Debug)]
-struct Codec {
+pub struct Codec {
     oversampling: bool,
     phase: bool,
     rolloff: bool,
@@ -229,15 +248,17 @@ impl VersionInfo {
 
 fn send_cmd(
     connection_state: State<'_, Mutex<ConnectionState>>,
-    buf: &[u8],
-) -> Result<[u8; MAX_CFG_LEN], &'static str> {
-    let mut connection = connection_state.lock().unwrap();
+    cmd: impl Command,
+) -> Result<[u8; MAX_CFG_LEN], String> {
+    let mut buf = Vec::new();
+    cmd.write_as_binary(&mut buf)?;
+    let connection = connection_state.lock();
 
     let device = match &connection.connected {
         Some(x) => x,
         None => {
             info!("The device is not connected.");
-            return Err("Not connected");
+            return Err("Not connected".to_owned());
         }
     };
 
@@ -248,11 +269,12 @@ fn send_cmd(
         .device_handle
         .write_bulk(interface.output, &buf, USB_TIMEOUT)
     {
-        Ok(_len) => (),
+        Ok(_) => (),
         Err(err) => {
-            error!("Failed to write to the configuration interface: {}", err);
-            connection.error = true;
-            return Err("Failed to write to the configuration interface");
+            return Err(format!(
+                "Failed to write to the configuration interface: {}",
+                err
+            ));
         }
     }
 
@@ -271,16 +293,16 @@ fn send_cmd(
                     length = u16::from_le_bytes(length_bytes);
                     //println!("Length: {}", length);
                     if usize::from(length) > MAX_CFG_LEN {
-                        error!("Overflow reading from the config interface, got {} bytes, max size is {} bytes.", length, MAX_CFG_LEN);
-                        return Err("Overflow error");
+                        return Err(format!("Overflow reading from the config interface, got {} bytes, max size is {} bytes.", length, MAX_CFG_LEN));
                     }
                 }
                 read_length += len as u16;
             }
             Err(err) => {
-                error!("Error reading from the configuration inteface: {}", err);
-                connection.error = true;
-                return Err("Read Error");
+                return Err(format!(
+                    "Error reading from the configuration inteface: {}",
+                    err
+                ));
             }
         }
     }
@@ -289,75 +311,31 @@ fn send_cmd(
 
 #[tauri::command]
 fn write_config(
-    config: &str,
+    config: Config,
     connection_state: State<'_, Mutex<ConnectionState>>,
-) -> Result<bool, ()> {
-    let cfg = match serde_json::from_str::<Config>(config) {
-        Ok(x) => x,
-        Err(e) => {
-            error!("Error serializing config: {}", e);
-            info!("{}", config);
-            return Ok(false);
-        }
-    };
-
-    let filter_payload: Vec<u8> = cfg.filters.to_payload();
-    let preprocessing_payload: Vec<u8> = cfg.preprocessing.to_payload();
-    let codec_payload = cfg.codec.to_payload();
-
-    let mut buf: Vec<u8> = Vec::new();
-    buf.extend_from_slice(&(StructureTypes::SetConfiguration as u16).to_le_bytes());
-    buf.extend_from_slice(
-        &((16 + filter_payload.len() + preprocessing_payload.len() + codec_payload.len()) as u16)
-            .to_le_bytes(),
-    );
-    buf.extend_from_slice(&(StructureTypes::PreProcessingConfiguration as u16).to_le_bytes());
-    buf.extend_from_slice(&((4 + preprocessing_payload.len()) as u16).to_le_bytes());
-    buf.extend_from_slice(&preprocessing_payload);
-    buf.extend_from_slice(&(StructureTypes::FilterConfiguration as u16).to_le_bytes());
-    buf.extend_from_slice(&((4 + filter_payload.len()) as u16).to_le_bytes());
-    buf.extend_from_slice(&filter_payload);
-    buf.extend_from_slice(&(StructureTypes::Pcm3060Configuration as u16).to_le_bytes());
-    buf.extend_from_slice(&((4 + codec_payload.len()) as u16).to_le_bytes());
-    buf.extend_from_slice(&codec_payload);
-
-    match &send_cmd(connection_state, &buf) {
-        Ok(_) => return Ok(true), // TODO: Check for NOK
-        Err(e) => {
-            error!("Error writing config: {}", e);
-            return Err(());
-        }
-    }
+) -> Result<(), String> {
+    let prep = SetPreprocessingConfiguration::new(&config.preprocessing);
+    let filters = SetFilterConfiguration::new(&config.filters);
+    let codec = SetPcm3060Configuration::new(&config.codec);
+    let cmd = SetConfiguration::new(prep, filters, codec);
+    send_cmd(connection_state, cmd)?;
+    Ok(())
 }
 
 #[tauri::command]
-fn save_config(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<bool, ()> {
-    let mut buf: Vec<u8> = Vec::new();
-    buf.extend_from_slice(&(StructureTypes::SaveConfiguration as u16).to_le_bytes());
-    buf.extend_from_slice(&(4u16).to_le_bytes());
-
-    match &send_cmd(connection_state, &buf) {
-        Ok(_) => return Ok(true), // TODO: Check for NOK
-        Err(e) => {
-            error!("Error saving config: {}", e);
-            return Err(());
-        }
-    }
+fn save_config(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<(), String> {
+    send_cmd(connection_state, SaveConfiguration::new())?;
+    Ok(())
 }
 
 #[tauri::command]
-fn load_config(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<String, ()> {
-    let mut buf: Vec<u8> = Vec::new();
-    buf.extend_from_slice(&(StructureTypes::GetStoredConfiguration as u16).to_le_bytes());
-    buf.extend_from_slice(&(4u16).to_le_bytes());
-
-    let binding = send_cmd(connection_state, &buf);
+fn load_config(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<Config, String> {
+    let binding = send_cmd(connection_state, GetStoredConfiguration::new());
     let cfg = match &binding {
         Ok(x) => x,
         Err(e) => {
             // TODO: Check for NOK
-            error!("Error reading config: {}", e);
-            return Err(());
+            return Err(format!("Error reading config: {}", e));
         }
     };
 
@@ -373,10 +351,10 @@ fn load_config(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<St
             x if x == StructureTypes::PreProcessingConfiguration as u16 => {
                 // +1 to maintain compatability with old firmwares
                 let preamp = cur.read_f32::<LittleEndian>().unwrap() + 1.0;
-                let postEQGain = cur.read_f32::<LittleEndian>().unwrap() + 1.0;
+                let post_eq_gain = cur.read_f32::<LittleEndian>().unwrap() + 1.0;
                 let reverse_stereo = cur.read_u8().unwrap() != 0;
 
-                cfg.preprocessing = Preprocessing::new(preamp, postEQGain, reverse_stereo);
+                cfg.preprocessing = Preprocessing::new(preamp, post_eq_gain, reverse_stereo);
                 let _ = cur.seek(SeekFrom::Current(3)); // reserved bytes
             }
             x if x == StructureTypes::FilterConfiguration as u16 => {
@@ -386,8 +364,7 @@ fn load_config(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<St
                 }
 
                 if cur.position() != end {
-                    error!("Read off the end of the filters TLV");
-                    return Err(());
+                    return Err("Read off the end of the filters TLV".to_owned());
                 }
             }
             x if x == StructureTypes::Pcm3060Configuration as u16 => {
@@ -405,212 +382,162 @@ fn load_config(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<St
         position += length_val;
         cur.set_position(position as u64);
     }
-    Ok(serde_json::to_string(&cfg).unwrap())
+    Ok(cfg)
 }
 
 #[tauri::command]
-fn factory_reset(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<bool, ()> {
-    let mut buf: Vec<u8> = Vec::new();
-    buf.extend_from_slice(&(StructureTypes::FactoryReset as u16).to_le_bytes());
-    buf.extend_from_slice(&(4u16).to_le_bytes());
-
-    match &send_cmd(connection_state, &buf) {
-        Ok(_r) => return Ok(true), // TODO: Check for NOK
-        Err(e) => {
-            error!("Factory reset error: {}", e);
-            return Err(());
-        }
-    }
+fn factory_reset(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<(), String> {
+    send_cmd(connection_state, FactoryReset::new())?;
+    Ok(())
 }
 
 #[tauri::command]
-fn reboot_bootloader(connection_state: State<Mutex<ConnectionState>>) -> bool {
-    let connection = connection_state.lock().unwrap();
-    match &connection.connected {
-        Some(device) => {
-            let buf: [u8; 0] = [];
-            let r = device.device_handle.write_control(
-                LIBUSB_RECIPIENT_DEVICE | LIBUSB_REQUEST_TYPE_VENDOR,
-                0,
-                0x2e8a,
-                0,
-                &buf,
-                USB_TIMEOUT,
-            );
-            info!("Reboot Device: {}", r.is_err());
-
-            return true;
-        }
-        None => {
-            warn!("No connection");
-            return false;
-        }
-    }
-}
-
-#[tauri::command]
-fn read_version_info(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<String, ()> {
-    let mut buf: Vec<u8> = Vec::new();
-    buf.extend_from_slice(&(StructureTypes::GetVersion as u16).to_le_bytes());
-    buf.extend_from_slice(&(4u16).to_le_bytes());
-
-    let binding = send_cmd(connection_state, &buf);
-    let v = match &binding {
-        Ok(x) => x,
-        Err(e) => {
-            error!("Error reading device version information: {}", e);
-            return Err(());
-        }
+fn reboot_bootloader(connection_state: State<Mutex<ConnectionState>>) -> Result<(), String> {
+    let connection = connection_state.lock();
+    let device = match &connection.connected {
+        Some(x) => x,
+        None => return Err("No connection".to_owned()),
     };
 
-    let version = VersionInfo::from_buf(v).unwrap();
-    Ok(serde_json::to_string(&version).unwrap())
+    let r = device.device_handle.write_control(
+        LIBUSB_RECIPIENT_DEVICE | LIBUSB_REQUEST_TYPE_VENDOR,
+        0,
+        0x2e8a,
+        0,
+        &[],
+        USB_TIMEOUT,
+    );
+    info!("Reboot Device: {}", r.is_err());
+
+    Ok(())
 }
 
 #[tauri::command]
-fn open(serial_number: &str, connection_state: State<Mutex<ConnectionState>>) -> bool {
-    let context = match rusb::Context::new() {
-        Ok(c) => c,
-        Err(e) => panic!("libusb::Context::new(): {}", e),
-    };
+fn read_version_info(
+    connection_state: State<'_, Mutex<ConnectionState>>,
+) -> Result<VersionInfo, String> {
+    let v = send_cmd(connection_state, GetVersion::new())?;
+    let version = VersionInfo::from_buf(&v)?;
+    Ok(version)
+}
 
-    let devices = match context.devices() {
-        Ok(d) => d,
-        Err(e) => {
-            error!("Device not found: {}", e);
-            return false;
-        }
-    };
+#[tauri::command]
+fn open(
+    serial_number: &str,
+    connection_state: State<Mutex<ConnectionState>>,
+) -> Result<(), String> {
+    let context = rusb::Context::new().expect("Can't create libusb::Context::new()");
 
-    let mut connection = connection_state.lock().unwrap();
+    let devices = context
+        .devices()
+        .map_err(|e| format!("Device not found: {}", e))?;
+
+    let mut connection = connection_state.lock();
     connection.connected = None;
     for device in devices.iter() {
         let address: u16 = ((device.bus_number() as u16) << 8) | (device.address() as u16);
-        match connection.serial_numbers.get(&address) {
-            Some(sn) => {
-                if sn == serial_number {
-                    match device.open() {
-                        Ok(mut handle) => {
-                            let configuration_interface = find_configuration_endpoints(&device);
-                            let interface = match configuration_interface {
-                                Some(i) => {
-                                    handle.claim_interface(i.interface).unwrap();
-                                    i
-                                }
-                                None => {
-                                    println!("Could not detect a configuration interface");
-                                    return false;
-                                }
-                            };
-                            info!(
-                                "Opened the device at address {}, with serial number {}",
-                                address, sn
-                            );
-                            connection.connected = Some(ConnectedDevice {
-                                device_handle: handle,
-                                configuration_interface: interface,
-                            });
-                            return true;
-                        }
-                        Err(e) => {
-                            error!("Could not open {}", e);
-                            return false;
-                        }
-                    }
-                }
-            }
+        let sn = match connection.serial_numbers.get(&address) {
+            Some(x) => x,
             None => continue,
+        };
+
+        if sn != serial_number {
+            continue;
         }
+
+        let mut handle = device.open().map_err(|e| format!("Could not open {}", e))?;
+        let interface = find_configuration_endpoints(&device)
+            .ok_or_else(|| "Could not detect a configuration interface".to_owned())?;
+        handle
+            .claim_interface(interface.interface)
+            .map_err(|e| format!("Could not claim interface: {}", e))?;
+
+        info!(
+            "Opened the device at address {}, with serial number {}",
+            address, sn
+        );
+        connection.connected = Some(ConnectedDevice {
+            device_handle: handle,
+            configuration_interface: interface,
+        });
+        return Ok(());
     }
-    return false;
+    Err("Can't find device".to_owned())
 }
 
 #[tauri::command]
-fn poll_devices(connection_state: State<Mutex<ConnectionState>>) -> String {
-    let mut status = PollDeviceStatus::new();
-    let mut known_devices: HashSet<u16> = connection_state
-        .lock()
-        .unwrap()
-        .serial_numbers
-        .keys()
-        .cloned()
-        .collect();
+fn poll_devices(connection_state: State<Mutex<ConnectionState>>) -> PollDeviceStatus {
+    let mut connection = connection_state.lock();
+    let mut known_devices = std::mem::take(&mut connection.serial_numbers);
 
-    // Flag any error condition to the frontend. This will cause it to try and reconnect.
-    status.error = connection_state.lock().unwrap().error;
-    connection_state.lock().unwrap().error = false;
-
-    let context = match rusb::Context::new() {
-        Ok(c) => c,
-        Err(e) => panic!("libusb::Context::new(): {}", e),
-    };
+    let context = rusb::Context::new().expect("Can't create libusb::Context::new()");
 
     let devices = match context.devices() {
         Ok(d) => d,
         Err(_) => {
-            status.error = true;
-            return serde_json::to_string(&status).unwrap();
+            return PollDeviceStatus {
+                connected: false,
+                device_list: Vec::new(),
+            };
         }
     };
 
+    let serial_numbers = &mut connection.serial_numbers;
+
     for device in devices.iter() {
-        let address: u16 = ((device.bus_number() as u16) << 8) | (device.address() as u16);
-        if known_devices.contains(&address) {
-            status
-                .device_list
-                .push(connection_state.lock().unwrap().serial_numbers[&address].clone());
-            known_devices.remove(&address);
-            continue;
-        }
         let device_desc = match device.device_descriptor() {
             Ok(d) => d,
             Err(_) => continue,
         };
+
+        if device_desc.vendor_id() != 0x2e8a || device_desc.product_id() != 0xfedd {
+            continue;
+        }
+
+        let address: u16 = ((device.bus_number() as u16) << 8) | (device.address() as u16);
+
+        match known_devices.remove(&address) {
+            Some(sn) => {
+                serial_numbers.insert(address, sn);
+                continue;
+            }
+            None => {}
+        }
+
+        info!("New device found at address {}", address);
         // println!("Device {:#x}:{:#x} {:#x} {:#x} {:#x}", device_desc.vendor_id(), device_desc.product_id(), device_desc.class_code(), device.bus_number(), device.address());
 
-        if device_desc.vendor_id() == 0x2e8a && device_desc.product_id() == 0xfedd {
-            info!("New device found at address {}", address);
-            match device.open() {
-                Ok(handle) => {
-                    let serial_number_string_index =
-                        device_desc.serial_number_string_index().unwrap();
-                    let serial_number =
-                        handle.read_string_descriptor_ascii(serial_number_string_index);
-                    match serial_number {
-                        Ok(sn) => {
-                            info!("Device {} has serial number {}", address, sn);
-                            connection_state
-                                .lock()
-                                .unwrap()
-                                .serial_numbers
-                                .insert(address, sn.clone());
-                            status.device_list.push(sn);
-                        }
-                        Err(e) => {
-                            error!("Get serial number failed {}", e);
-                            continue;
-                        }
-                    }
-                }
-                Err(e) => {
-                    error!("Open failed {}", e);
-                    continue;
-                }
+        let handle = match device.open() {
+            Ok(x) => x,
+            Err(e) => {
+                error!("Open failed {}", e);
+                continue;
             }
-        }
+        };
+
+        let serial_number_string_index = device_desc.serial_number_string_index().unwrap();
+
+        let sn = match handle.read_string_descriptor_ascii(serial_number_string_index) {
+            Ok(x) => x,
+            Err(e) => {
+                error!("Get serial number failed {}", e);
+                continue;
+            }
+        };
+
+        info!("Device {} has serial number {}", address, sn);
+        serial_numbers.insert(address, sn);
     }
 
     // Handle unplugged devices
-    for address in known_devices {
-        info!("The device at address {} was disconnected", address);
-        connection_state
-            .lock()
-            .unwrap()
-            .serial_numbers
-            .remove(&address);
+    for (address, sn) in known_devices {
+        info!("The device {} at address {} was disconnected", sn, address);
     }
 
-    serde_json::to_string(&status).unwrap()
+    PollDeviceStatus {
+        connected: connection.check_connection(),
+        device_list: connection.serial_numbers.values().cloned().collect(),
+    }
 }
 
 fn main() {
@@ -636,7 +563,9 @@ fn main() {
                 ),
             ])
             .unwrap();
+
             let window = app.get_window("main").unwrap();
+            let _ = window.set_resizable(true);
             #[cfg(any(windows, target_os = "macos"))]
             set_shadow(&window, true).expect("Unsupported platform!");
             info!("Headphones Toolbox Started");
