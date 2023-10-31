@@ -7,8 +7,9 @@ use crate::low_level::{DeserializeFilter, Payload};
 
 const FS: f64 = 48000.0;
 
-#[derive(Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct FreqGainQualFilter<T: FilterName> {
+    #[serde(skip, default)]
     _type: PhantomData<T>,
     pub f0: f32,
     pub q: f32,
@@ -39,8 +40,9 @@ impl<T: FilterName> DeserializeFilter for FreqGainQualFilter<T> {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct FreqQualFilter<T: FilterName> {
+    #[serde(skip, default)]
     _type: PhantomData<T>,
     pub f0: f32,
     pub q: f32,
@@ -91,7 +93,8 @@ impl CustomIIRFilter {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(tag = "filter_type")]
 pub enum FilterConfig {
     Lowpass(LowpassFilter),
     Highpass(HighpassFilter),
@@ -114,6 +117,51 @@ pub type AllpassFilter = FreqQualFilter<Allpass>;
 pub type PeakingFilter = FreqGainQualFilter<Peaking>;
 pub type LowShelfFilter = FreqGainQualFilter<LowShelf>;
 pub type HighShelfFilter = FreqGainQualFilter<HighShelf>;
+
+pub trait Validate {
+    fn validate(&self) -> Result<(), String>;
+}
+
+impl Validate for FilterConfig {
+    fn validate(&self) -> Result<(), String> {
+        match self {
+            FilterConfig::Lowpass(x) => x.validate(),
+            FilterConfig::Highpass(x) => x.validate(),
+            FilterConfig::BandpassSkirt(x) => x.validate(),
+            FilterConfig::BandpassPeak(x) => x.validate(),
+            FilterConfig::Notch(x) => x.validate(),
+            FilterConfig::Allpass(x) => x.validate(),
+            FilterConfig::Peaking(x) => x.validate(),
+            FilterConfig::LowShelf(x) => x.validate(),
+            FilterConfig::HighShelf(x) => x.validate(),
+            FilterConfig::CustomIIR(x) => x.validate(),
+        }
+    }
+}
+
+impl<T: FilterName> Validate for FreqQualFilter<T> {
+    fn validate(&self) -> Result<(), String> {
+        if self.q <= 0.0 {
+            return Err("Quality can't be zero.".to_owned());
+        }
+        Ok(())
+    }
+}
+
+impl<T: FilterName> Validate for FreqGainQualFilter<T> {
+    fn validate(&self) -> Result<(), String> {
+        if self.q <= 0.0 {
+            return Err("Quality can't be zero.".to_owned());
+        }
+        Ok(())
+    }
+}
+
+impl Validate for CustomIIRFilter {
+    fn validate(&self) -> Result<(), String> {
+        Ok(()) // TODO
+    }
+}
 
 impl FilterConfig {
     #[allow(dead_code)]
@@ -208,9 +256,11 @@ impl Into<FilterConfig> for CustomIIRFilter {
     }
 }
 
-#[derive(Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct SavedFilter {
     enabled: bool,
+
+    #[serde(flatten)]
     filter: FilterConfig,
 }
 
@@ -220,22 +270,8 @@ impl SavedFilter {
     }
 }
 
-#[derive(Default, Debug)]
+#[derive(Serialize, Deserialize, Default, Debug)]
 pub struct Filters(Vec<SavedFilter>);
-
-impl FromIterator<SavedFilter> for Filters {
-    fn from_iter<T: IntoIterator<Item = SavedFilter>>(iter: T) -> Self {
-        Filters(iter.into_iter().collect())
-    }
-}
-
-impl IntoIterator for Filters {
-    type Item = SavedFilter;
-    type IntoIter = <Vec<Self::Item> as IntoIterator>::IntoIter;
-    fn into_iter(self) -> Self::IntoIter {
-        self.0.into_iter()
-    }
-}
 
 impl Filters {
     pub fn to_payload(&self) -> Vec<u8> {
@@ -249,6 +285,12 @@ impl Filters {
 
     pub fn add(&mut self, filter: FilterConfig, enabled: bool) {
         self.0.push(SavedFilter::new(enabled, filter));
+    }
+}
+
+impl Validate for Filters {
+    fn validate(&self) -> Result<(), String> {
+        self.0.iter().map(|f| f.filter.validate()).collect()
     }
 }
 

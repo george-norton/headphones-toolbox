@@ -11,7 +11,6 @@ use commands::SetFilterConfiguration;
 use commands::SetPcm3060Configuration;
 use commands::SetPreprocessingConfiguration;
 use commands::StructureTypes;
-use dto::ConfigDTO;
 use filters::Filters;
 use low_level::read_filter;
 use parking_lot::Mutex;
@@ -40,7 +39,6 @@ use std::fs;
 use std::fs::File;
 
 mod commands;
-mod dto;
 mod filters;
 mod low_level;
 
@@ -198,7 +196,7 @@ impl Codec {
     }
 }
 
-#[derive(Default, Debug)]
+#[derive(Serialize, Deserialize, Default, Debug)]
 pub struct Config {
     pub preprocessing: Preprocessing,
     pub filters: Filters,
@@ -324,12 +322,11 @@ fn send_cmd(
 
 #[tauri::command]
 fn write_config(
-    config: ConfigDTO,
+    config: Config,
     connection_state: State<'_, Mutex<ConnectionState>>,
 ) -> Result<(), String> {
-    let config: Config = config.try_into()?;
     let prep = SetPreprocessingConfiguration::new(&config.preprocessing);
-    let filters = SetFilterConfiguration::new(&config.filters);
+    let filters = SetFilterConfiguration::new(&config.filters)?;
     let codec = SetPcm3060Configuration::new(&config.codec);
     let cmd = SetConfiguration::new(prep, filters, codec);
     send_cmd(connection_state, cmd)?;
@@ -343,7 +340,7 @@ fn save_config(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<()
 }
 
 #[tauri::command]
-fn load_config(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<ConfigDTO, String> {
+fn load_config(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<Config, String> {
     let binding = send_cmd(connection_state, GetStoredConfiguration::new());
     let cfg = match &binding {
         Ok(x) => x,
@@ -357,7 +354,7 @@ fn load_config(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<Co
     let _result_type_val = cur.read_u16::<LittleEndian>().unwrap();
     let result_length_val = cur.read_u16::<LittleEndian>().unwrap();
     let mut position = 4;
-    let mut cfg = ConfigDTO::default();
+    let mut cfg = Config::default();
     while position < result_length_val {
         let type_val = cur.read_u16::<LittleEndian>().unwrap();
         let length_val = cur.read_u16::<LittleEndian>().unwrap();
@@ -374,7 +371,7 @@ fn load_config(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<Co
             x if x == StructureTypes::FilterConfiguration as u16 => {
                 let end = cur.position() + (length_val - 4) as u64;
                 while cur.position() < end {
-                    cfg.filters.add(read_filter(&mut cur)?.into())
+                    cfg.filters.add(read_filter(&mut cur)?, true)
                 }
 
                 if cur.position() != end {

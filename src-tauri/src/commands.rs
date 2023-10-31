@@ -1,6 +1,9 @@
 use std::io::Write;
 
-use crate::{filters::Filters, Codec, Preprocessing};
+use crate::{
+    filters::{Filters, Validate},
+    Codec, Preprocessing,
+};
 
 pub trait Command {
     fn write_as_binary(&self, buf: impl Write);
@@ -67,8 +70,9 @@ impl Command for SetPreprocessingConfiguration<'_> {
 pub struct SetFilterConfiguration<'a>(&'a Filters);
 
 impl<'a> SetFilterConfiguration<'a> {
-    pub fn new(filters: &'a Filters) -> Self {
-        Self(filters)
+    pub fn new(filters: &'a Filters) -> Result<Self, String> {
+        filters.validate()?;
+        Ok(Self(filters))
     }
 }
 
@@ -208,7 +212,9 @@ mod tests {
     fn filter_works() {
         let mut buf = Vec::new();
         let config = Filters::default();
-        SetFilterConfiguration::new(&config).write_as_binary(&mut buf);
+        SetFilterConfiguration::new(&config)
+            .unwrap()
+            .write_as_binary(&mut buf);
         assert!(buf.len() > 0, "Command didn't write anything");
         assert_eq!(buf.as_slice(), &[1, 2, 4, 0], "Wrong data");
     }
@@ -230,7 +236,7 @@ mod tests {
         let codec_config = Codec::default();
 
         let prep = SetPreprocessingConfiguration::new(&prep_config);
-        let filters = SetFilterConfiguration::new(&filters_config);
+        let filters = SetFilterConfiguration::new(&filters_config).unwrap();
         let codec = SetPcm3060Configuration::new(&codec_config);
         SetConfiguration::new(prep, filters, codec).write_as_binary(&mut buf);
         assert!(buf.len() > 0, "Command didn't write anything");
