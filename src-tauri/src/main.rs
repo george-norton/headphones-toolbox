@@ -11,8 +11,8 @@ use commands::SetFilterConfiguration;
 use commands::SetPcm3060Configuration;
 use commands::SetPreprocessingConfiguration;
 use commands::StructureTypes;
-use model::Filter;
-use model::Filters;
+use filters::Filters;
+use low_level::read_filter;
 use parking_lot::Mutex;
 use rusb::{Device, DeviceHandle, Direction, UsbContext};
 use serde::{Deserialize, Serialize};
@@ -39,7 +39,8 @@ use std::fs;
 use std::fs::File;
 
 mod commands;
-mod model;
+mod filters;
+mod low_level;
 
 pub const LIBUSB_RECIPIENT_DEVICE: u8 = 0x00;
 pub const LIBUSB_REQUEST_TYPE_VENDOR: u8 = 0x02 << 5;
@@ -196,10 +197,20 @@ impl Codec {
 }
 
 #[derive(Serialize, Deserialize, Default, Debug)]
-struct Config {
-    preprocessing: Preprocessing,
-    filters: Filters,
-    codec: Codec,
+pub struct Config {
+    pub preprocessing: Preprocessing,
+    pub filters: Filters,
+    pub codec: Codec,
+}
+
+impl Config {
+    pub fn new(preprocessing: Preprocessing, filters: Filters, codec: Codec) -> Self {
+        Self {
+            preprocessing,
+            filters,
+            codec,
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize)]
@@ -251,7 +262,7 @@ fn send_cmd(
     cmd: impl Command,
 ) -> Result<[u8; MAX_CFG_LEN], String> {
     let mut buf = Vec::new();
-    cmd.write_as_binary(&mut buf)?;
+    cmd.write_as_binary(&mut buf);
     let connection = connection_state.lock();
 
     let device = match &connection.connected {
@@ -315,7 +326,7 @@ fn write_config(
     connection_state: State<'_, Mutex<ConnectionState>>,
 ) -> Result<(), String> {
     let prep = SetPreprocessingConfiguration::new(&config.preprocessing);
-    let filters = SetFilterConfiguration::new(&config.filters);
+    let filters = SetFilterConfiguration::new(&config.filters)?;
     let codec = SetPcm3060Configuration::new(&config.codec);
     let cmd = SetConfiguration::new(prep, filters, codec);
     send_cmd(connection_state, cmd)?;
@@ -360,7 +371,7 @@ fn load_config(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<Co
             x if x == StructureTypes::FilterConfiguration as u16 => {
                 let end = cur.position() + (length_val - 4) as u64;
                 while cur.position() < end {
-                    cfg.filters.add(Filter::from_bytes(&mut cur)?)
+                    cfg.filters.add(read_filter(&mut cur)?, true)
                 }
 
                 if cur.position() != end {
@@ -382,7 +393,7 @@ fn load_config(connection_state: State<'_, Mutex<ConnectionState>>) -> Result<Co
         position += length_val;
         cur.set_position(position as u64);
     }
-    Ok(cfg)
+    Ok(cfg.into())
 }
 
 #[tauri::command]
