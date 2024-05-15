@@ -456,7 +456,7 @@ fn open(
             continue;
         }
 
-        let mut handle = device.open().map_err(|e| format!("Could not open {}", e))?;
+        let handle = device.open().map_err(|e| format!("Could not open {}", e))?;
         let interface = find_configuration_endpoints(&device)
             .ok_or_else(|| "Could not detect a configuration interface".to_owned())?;
         handle
