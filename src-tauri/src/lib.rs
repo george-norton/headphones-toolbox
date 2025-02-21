@@ -28,9 +28,6 @@ use tauri::State;
 // Window shadow support
 use tauri::Manager;
 
-#[allow(unused_imports)]
-use window_shadows::set_shadow;
-
 // Logging
 use log::{error, info, warn};
 extern crate simplelog;
@@ -582,8 +579,6 @@ pub fn run() {
 
             let window = app.get_webview_window("main").unwrap();
             let _ = window.set_resizable(true);
-            #[cfg(any(windows, target_os = "macos"))]
-            set_shadow(&window, true).expect("Unsupported platform!");
             info!("Headphones Toolbox Started");
             Ok(())
         })
