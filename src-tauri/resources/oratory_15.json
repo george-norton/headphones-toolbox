@@ -8,22 +8,22 @@
         {
             "filter_type": "peaking",
             "q": 1.4,
-            "f0": 39,
+            "f0": 38.5,
             "db_gain": -21,
             "enabled": true
         },
         {
-            "filter_type": "lowshelf",
+            "filter_type": "peaking",
             "q": 0.5,
             "f0": 60,
             "db_gain": -6.7,
             "enabled": true
         },
         {
-            "filter_type": "peaking",
+            "filter_type": "lowshelf",
             "q": 0.71,
             "f0": 105,
-            "db_gain": 2.5,
+            "db_gain": 5.5,
             "enabled": true
         },
         {
@@ -107,7 +107,7 @@
             "filter_type": "highshelf",
             "q": 0.71,
             "f0": 12000,
-            "db_gain": -3,
+            "db_gain": -6,
             "enabled": true
         }
     ],

@@ -1,0 +1,38 @@
+{
+  "identifier": "migrated",
+  "description": "permissions that were migrated from v1",
+  "local": true,
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "core:path:default",
+    "core:event:default",
+    "core:window:default",
+    "core:app:default",
+    "core:resources:default",
+    "core:menu:default",
+    "core:tray:default",
+    "os:allow-version",
+    "os:allow-platform",
+    "os:allow-arch",
+    "fs:allow-resource-read",
+    "fs:allow-resource-read-recursive",
+    "fs:allow-appdata-read",
+    "fs:allow-appdata-read-recursive",
+    "fs:allow-appdata-write",
+    "fs:allow-appdata-write-recursive",
+    "fs:scope-appdata",
+    "fs:scope-appdata-recursive",
+    "fs:scope-resource",
+    "fs:scope-resource-recursive",
+    "core:window:allow-start-dragging",
+    "core:window:allow-toggle-maximize",
+    "core:window:allow-minimize",
+    "core:window:allow-close",
+    "dialog:allow-open",
+    "shell:allow-open",
+    "dialog:allow-save",
+    "dialog:allow-open"
+  ]
+}

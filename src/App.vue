@@ -5,7 +5,7 @@ import PreProcessingCardVue from './components/PreProcessingCard.vue'
 import CodecCardVue from './components/CodecCard.vue'
 import AboutDialogVue from './components/AboutDialog.vue'
 import InfoMenuVue from './components/InfoMenu.vue'
-import { appWindow } from '@tauri-apps/api/window'
+import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useQuasar } from 'quasar'
 import { FilterTypes } from './components/FilterTypes.js'
 
@@ -17,13 +17,13 @@ const about = ref(null)
 <script>
 import { ref, reactive, toRaw } from 'vue'
 import { getCssVar } from 'quasar'
-import { invoke } from '@tauri-apps/api'
+import { invoke } from '@tauri-apps/api/core'
 import { getVersion } from '@tauri-apps/api/app';
 import debounce from 'lodash.debounce'
-import { save, open } from '@tauri-apps/api/dialog';
+import { save, open } from '@tauri-apps/plugin-dialog';
 import { resolveResource, join, documentDir, appLogDir } from '@tauri-apps/api/path';
-import { shell } from '@tauri-apps/api';
-import { createDir, readTextFile, writeTextFile, BaseDirectory } from "@tauri-apps/api/fs"
+import { open as shell_open } from '@tauri-apps/plugin-shell';
+import { mkdir, readTextFile, writeTextFile, BaseDirectory } from "@tauri-apps/plugin-fs"
 import semver from 'semver';
 
 const API_VERSION = 4;
@@ -64,15 +64,18 @@ export default {
         invoke("read_version_info").then((version) => {
           this.versions = { ...version, ...{ "serial_number": this.device, "client_api_version": API_VERSION } }
           if (this.versions.minimum_supported_version> API_VERSION) {
+            console.log("ERROR7");
             this.$q.notify({ type: 'negative', message: "Firmware is too new, this version of Ploopy Headphones Toolkit is not supported." })
           }
           else if (API_VERSION > this.versions.current_version) {
+            console.log("ERROR8");
             this.$q.notify({ type: 'negative', message: "Firmware is too old, this version of Ploopy Headphones Toolkit is not supported." })
           }
           else {
             this.validated = true
           }
         }).catch((e) => {
+          console.log("ERROR9");
         this.$q.notify({ type: 'negative', message: e })
       })
       }
@@ -271,22 +274,23 @@ export default {
         "version": this.version
       }
       try {
-        createDir("", { dir: BaseDirectory.AppData, recursive: true }).then(
+        console.log("Try")
+        mkdir("", { baseDir: BaseDirectory.AppData, recursive: true }).then(
           writeTextFile(
-            {
-              contents: JSON.stringify(config, null, 4),
-              path: "configuration.json"
-            },
-            { dir: BaseDirectory.AppData }
+            "configuration.json",
+            JSON.stringify(config, null, 4),
+            { baseDir: BaseDirectory.AppData }
           ))
+          console.log("Any good")
       } catch (e) {
-        console.log(e);
+        console.log("Was it here?")
+        console.log(e)
       }
     }, 100),
     loadState() {
       readTextFile(
         "configuration.json",
-        { dir: BaseDirectory.AppData }
+        { baseDir: BaseDirectory.AppData }
       ).then((response) => {
         var config = JSON.parse(response)
         if (config) {
@@ -401,7 +405,6 @@ export default {
           }
         }
         Object.assign(this.devices, status.device_list)
-
         if ((this.device == undefined || this.device == "none") && this.devices.length > 0) {
           this.device = this.devices[0];
         }
@@ -443,9 +446,9 @@ export default {
         <q-icon style="pointer-events: none;" name="img:ploopy.png" />
         <div style="pointer-events: none;">Ploopy Headphones Toolbox</div>
         <q-space />
-        <q-btn dense flat icon="minimize" @click="appWindow.minimize()" />
-        <q-btn dense flat icon="crop_square" @click="appWindow.toggleMaximize()" />
-        <q-btn dense flat icon="close" @click="appWindow.close()" />
+        <q-btn dense flat icon="minimize" @click="getCurrentWindow().minimize()" />
+        <q-btn dense flat icon="crop_square" @click="getCurrentWindow().toggleMaximize()" />
+        <q-btn dense flat icon="close" @click="getCurrentWindow().close()" />
       </q-bar>
 
       <q-toolbar class="text-white justify-start">
@@ -483,7 +486,7 @@ export default {
                 <q-item-section>Erase saved configuration</q-item-section>
               </q-item>
               <q-separator />
-              <q-item clickable v-close-popup @click="appLogDir().then((logs) => { shell.open(logs+'headphones_toolbox.log') });">
+              <q-item clickable v-close-popup @click="appLogDir().then((logs) => { shell_open(logs+'headphones_toolbox.log') });">
                 <q-item-section>Show log</q-item-section>
               </q-item>
               <q-item clickable v-close-popup @click="about.show()">

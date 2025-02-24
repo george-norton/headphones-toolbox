@@ -1,8 +1,8 @@
 <script>
 import { ref } from 'vue'
-import { open } from '@tauri-apps/api/shell';
+import { open } from '@tauri-apps/plugin-shell';
 import { getTauriVersion, getVersion } from '@tauri-apps/api/app';
-import { arch, version, platform } from '@tauri-apps/api/os';
+import { arch, version, platform } from '@tauri-apps/plugin-os';
 
 export default {
     setup() {
@@ -25,9 +25,9 @@ export default {
     mounted() {
         getVersion().then((version) => this.version = version)
         getTauriVersion().then((tauriVersion) => this.tauriVersion = tauriVersion)
-        arch().then((arch) => this.archName = arch)
-        platform().then((platform) => this.platformName = platform)
-        version().then((version) => this.osVersion = version)
+        this.archName = arch()
+        this.platformName = platform()
+        this.osVersion = version()
     },
     data() {
         return {
