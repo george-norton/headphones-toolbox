@@ -20,7 +20,7 @@
     ]
   },
   "productName": "Ploopy Headphones Toolbox",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "identifier": "app.ploopy.headphones",
   "plugins": {
     "fs": {}
